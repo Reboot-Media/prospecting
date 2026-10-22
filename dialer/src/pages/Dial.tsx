@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Empty, Icon, PageHeader, PainBadge, Select } from '../components/ui'
 import { OutcomeBar } from '../components/OutcomeBar'
-import { LeadHeader, LeadHistory } from '../components/LeadPanel'
+import { EmailPulse, LeadHeader, LeadTimeline } from '../components/LeadPanel'
 import { DIALABLE, OUTCOME_LABEL, PAIN_LABEL } from '../lib/constants'
 import { ago, prettyPhone } from '../lib/format'
 import type { Lead } from '../lib/types'
@@ -20,13 +20,13 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
 
   const dueIds = useMemo(() => {
     const now = new Date().toISOString()
-    return new Map(data.callbacks.filter((c) => !c.done_at && c.due_at <= now && (who === 'all' || c.owner === me.name)).map((c) => [c.lead_id, c.due_at]))
-  }, [data.callbacks, who, me.name])
+    return new Map(data.tasks.filter((c) => c.lead_id && c.kind === 'callback' && !c.done_at && c.due_at <= now && (who === 'all' || c.owner === me.name)).map((c) => [c.lead_id as string, c.due_at]))
+  }, [data.tasks, who, me.name])
 
   const list = useMemo(() => {
     const now = Date.now()
     const ok = (l: Lead) => {
-      if (skipped.has(l.id)) return false
+      if (skipped.has(l.id) || !l.phone) return false
       if (pain !== 'all' && l.pain !== pain) return false
       if (who === 'mine' && l.owner && l.owner !== me.name) return false
       if (queue === 'due') return dueIds.has(l.id)
@@ -125,7 +125,7 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
           <div className="space-y-5 xl:col-span-2">
             <Card className="p-5">
               {dueIds.has(current.id) && (
-                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-sand-50 px-2.5 py-1 text-xs font-semibold text-sand-700 ring-1 ring-inset ring-sand-400/40">
                   <Icon name="bell" className="h-3.5 w-3.5" /> Callback due
                 </div>
               )}
@@ -134,6 +134,9 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
                 <span>{current.attempts} attempt{current.attempts === 1 ? '' : 's'}</span>
                 <span>Last touch {ago(current.last_called_at)}</span>
                 {current.last_outcome && <span>Last result: {OUTCOME_LABEL[current.last_outcome]}</span>}
+              </div>
+              <div className="mt-2">
+                <EmailPulse lead={current} />
               </div>
               <div className="mt-5 border-t border-line pt-5">
                 <div className="mb-2 flex items-center justify-between">
@@ -147,8 +150,8 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
               </div>
             </Card>
             <Card className="p-5">
-              <h3 className="mb-3 text-sm font-semibold text-ink-900">History and notes</h3>
-              <LeadHistory lead={current} />
+              <h3 className="mb-3 text-sm font-semibold text-ink-900">Timeline</h3>
+              <LeadTimeline lead={current} />
             </Card>
           </div>
           <Card className="h-fit">
@@ -157,14 +160,14 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
             <ul>
               {next.map((l) => (
                 <li key={l.id}>
-                  <button onClick={() => setCurrentId(l.id)} className="flex w-full items-center gap-3 border-t border-line px-4 py-2.5 text-left first:border-t-0 hover:bg-zinc-50">
+                  <button onClick={() => setCurrentId(l.id)} className="flex w-full items-center gap-3 border-t border-line px-4 py-2.5 text-left first:border-t-0 hover:bg-wash">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-ink-900">{l.company}</div>
                       <div className="truncate text-xs text-ink-500">
                         {prettyPhone(l.phone)} · {l.city || '—'}
                       </div>
                     </div>
-                    {dueIds.has(l.id) ? <Icon name="bell" className="h-4 w-4 text-amber-600" /> : <PainBadge pain={l.pain} />}
+                    {dueIds.has(l.id) ? <Icon name="bell" className="h-4 w-4 text-sand-600" /> : <PainBadge pain={l.pain} />}
                   </button>
                 </li>
               ))}

@@ -55,7 +55,7 @@ export function CallbackModal({ lead, open, onClose, onDone }: { lead: Lead; ope
                   key={label}
                   type="button"
                   onClick={() => setDue(v)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${due === v ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-ink-700 ring-line hover:bg-zinc-50'}`}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${due === v ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-ink-700 ring-line hover:bg-wash'}`}
                 >
                   {label}
                 </button>
@@ -71,7 +71,7 @@ export function CallbackModal({ lead, open, onClose, onDone }: { lead: Lead; ope
                 key={r}
                 type="button"
                 onClick={() => setReason(r)}
-                className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${reason === r ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-ink-700 ring-line hover:bg-zinc-50'}`}
+                className={`rounded-full px-2.5 py-1 text-xs ring-1 ring-inset ${reason === r ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-ink-700 ring-line hover:bg-wash'}`}
               >
                 {r}
               </button>
@@ -154,7 +154,7 @@ export function BookedModal({ lead, open, onClose, onDone }: { lead: Lead; open:
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <div className="rounded-lg bg-zinc-50 p-3 text-sm leading-relaxed text-ink-700 ring-1 ring-inset ring-line">{text}</div>
+          <div className="rounded-lg bg-wash p-3 text-sm leading-relaxed text-ink-700 ring-1 ring-inset ring-line">{text}</div>
           <p className="mt-1.5 text-xs text-ink-400">Stays "Booked" until he texts back YES. Then mark it Confirmed.</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2 pt-1">

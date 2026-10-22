@@ -41,10 +41,10 @@ export function OutcomeBar({ lead, onLogged, hotkeys }: { lead: Lead; onLogged(o
     k === 'booked'
       ? 'bg-ink-900 text-white hover:bg-black ring-ink-900'
       : k === 'callback'
-        ? 'bg-amber-50 text-amber-900 ring-amber-200 hover:bg-amber-100'
+        ? 'bg-sand-50 text-sand-700 ring-sand-400/40 hover:bg-sand-50/70'
         : k === 'dnc' || k === 'bad_number'
-          ? 'bg-white text-rose-700 ring-rose-200 hover:bg-rose-50'
-          : 'bg-white text-ink-900 ring-line hover:bg-zinc-50'
+          ? 'bg-white text-clay-700 ring-clay-400/40 hover:bg-clay-50'
+          : 'bg-white text-ink-900 ring-line hover:bg-wash'
 
   return (
     <>

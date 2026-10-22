@@ -121,15 +121,18 @@ export function buildLeads(
       continue
     }
     const phone = e164(get(r, 'phone'))
-    if (phone.length < 11) {
+    const email = get(r, 'email').toLowerCase()
+    const okPhone = phone.length >= 11
+    if (!okPhone && !email) {
       res.skippedNoPhone++
       continue
     }
-    if (seen.has(phone)) {
+    if ((okPhone && seen.has(phone)) || (email && seen.has(email))) {
       res.skippedDuplicate++
       continue
     }
-    seen.add(phone)
+    if (okPhone) seen.add(phone)
+    if (email) seen.add(email)
     let first = get(r, 'first_name')
     let last = get(r, 'last_name')
     if (!first && !last && get(r, 'full_name')) {
@@ -143,13 +146,21 @@ export function buildLeads(
       first_name: first,
       last_name: last,
       company: get(r, 'company') || [first, last].filter(Boolean).join(' ') || 'Unknown company',
-      phone,
-      email: get(r, 'email'),
+      phone: okPhone ? phone : '',
+      email,
       city: get(r, 'city'),
       state: get(r, 'state'),
       website: get(r, 'website'),
       pain: painFromTags(tags),
-      status: 'new',
+      segment: tags.includes('shark') ? 'shark' : tags.includes('commercial') ? 'commercial' : 'growing',
+      status: tags.includes('dnc') ? 'dnc' : 'new',
+      stage: tags.includes('client') ? 'won' : null,
+      deal_value: 0,
+      source: 'GHL import',
+      sequence_id: null,
+      sequence_step: 0,
+      sequence_state: null,
+      email_status: 'ok',
       owner: opts.owner,
       tags,
       notes: '',

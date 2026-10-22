@@ -4,3 +4,5 @@
 
 html { -webkit-font-smoothing: antialiased; }
 body { @apply bg-canvas text-ink-900 font-sans; }
+.tabular { font-variant-numeric: tabular-nums; }
+.scroll-thin { scrollbar-width: thin; }

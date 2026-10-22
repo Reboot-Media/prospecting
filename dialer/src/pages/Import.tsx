@@ -4,14 +4,14 @@ import { FIELD_LABEL, buildLeads, guessMapping, parseCsv, type Field as F } from
 import { prettyPhone } from '../lib/format'
 import { useData } from '../lib/store'
 
-const DEFAULT_SKIP = 'client, not-a-lead, no interest, commercial, shark'
+const DEFAULT_SKIP = 'not-a-lead'
 
 export function Import({ done }: { done(): void }) {
   const { me, data, importLeads } = useData()
   const [name, setName] = useState('')
   const [table, setTable] = useState<string[][]>([])
   const [map, setMap] = useState<Partial<Record<F, number>>>({})
-  const [onlyTag, setOnlyTag] = useState('call')
+  const [onlyTag, setOnlyTag] = useState('')
   const [skip, setSkip] = useState(DEFAULT_SKIP)
   const [owner, setOwner] = useState('split')
   const [busy, setBusy] = useState(false)
@@ -22,7 +22,7 @@ export function Import({ done }: { done(): void }) {
 
   const result = useMemo(() => {
     if (!table.length) return null
-    const existing = new Set(data.leads.map((l) => l.phone))
+    const existing = new Set(data.leads.flatMap((l) => [l.phone, l.email.toLowerCase()].filter(Boolean)))
     const r = buildLeads(table, map, { onlyTag, skipTags: skip.split(','), owner: owner === 'split' || owner === 'none' ? null : owner }, existing)
     if (owner === 'split') r.rows.forEach((l, i) => (l.owner = callers[i % callers.length]))
     return r
@@ -43,7 +43,7 @@ export function Import({ done }: { done(): void }) {
     setBusy(true)
     await importLeads(result.rows)
     setBusy(false)
-    setMsg(`Imported ${result.rows.length} leads.`)
+    setMsg(`Imported ${result.rows.length} contacts.`)
     setTable([])
     setName('')
     done()
@@ -51,10 +51,10 @@ export function Import({ done }: { done(): void }) {
 
   return (
     <div className="max-w-4xl">
-      <PageHeader title="Import leads" sub="Upload a GHL contacts export (or any CSV with a phone column). Duplicates by phone number are skipped." />
-      {msg && <div className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{msg}</div>}
+      <PageHeader title="Import" sub="Bring every GHL contact over in one go. Tags, pain lane and segment come with them. Duplicates (same phone or email) are skipped." />
+      {msg && <div className="mb-4 rounded-lg bg-sage-50 px-3 py-2 text-sm text-sage-700">{msg}</div>}
       <Card className="p-5">
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-zinc-50 px-6 py-10 text-center hover:bg-zinc-100">
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-ink-300 bg-wash px-6 py-10 text-center hover:bg-canvas">
           <span className="text-sm font-medium text-ink-900">{name || 'Choose a CSV file'}</span>
           <span className="mt-1 text-xs text-ink-500">In GHL: Contacts → select all → Export. Keep the Tags column.</span>
           <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
@@ -78,7 +78,7 @@ export function Import({ done }: { done(): void }) {
 
             <h3 className="mb-3 mt-6 text-sm font-semibold text-ink-900">Which rows</h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field label="Only rows tagged" hint="Blank imports every row.">
+              <Field label="Only rows tagged" hint="Blank imports every row. Use call for the dial list only.">
                 <input value={onlyTag} onChange={(e) => setOnlyTag(e.target.value)} className={inputCls} />
               </Field>
               <Field label="Skip rows tagged" hint="Comma separated.">
@@ -95,14 +95,14 @@ export function Import({ done }: { done(): void }) {
             </div>
 
             {result && (
-              <div className="mt-6 rounded-xl bg-zinc-50 p-4 ring-1 ring-inset ring-line">
+              <div className="mt-6 rounded-xl bg-wash p-4 ring-1 ring-inset ring-line">
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
                   <span>
                     <b className="text-ink-900">{result.rows.length}</b> <span className="text-ink-500">to import</span>
                   </span>
                   <span className="text-ink-500">{result.skippedDuplicate} duplicates</span>
                   <span className="text-ink-500">{result.skippedByTag} skipped by tag</span>
-                  <span className="text-ink-500">{result.skippedNoPhone} without a phone</span>
+                  <span className="text-ink-500">{result.skippedNoPhone} without phone or email</span>
                 </div>
                 <ul className="mt-3 divide-y divide-line text-sm">
                   {result.rows.slice(0, 5).map((l) => (
@@ -118,8 +118,8 @@ export function Import({ done }: { done(): void }) {
               </div>
             )}
             <div className="mt-5 flex justify-end">
-              <Button variant="primary" onClick={run} disabled={busy || !result?.rows.length || map.phone === undefined}>
-                {busy ? 'Importing…' : `Import ${result?.rows.length || 0} leads`}
+              <Button variant="primary" onClick={run} disabled={busy || !result?.rows.length || (map.phone === undefined && map.email === undefined)}>
+                {busy ? 'Importing…' : `Import ${result?.rows.length || 0} contacts`}
               </Button>
             </div>
           </>

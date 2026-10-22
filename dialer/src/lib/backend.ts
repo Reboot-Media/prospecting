@@ -1,20 +1,29 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Activity, Callback, Lead, Settings } from './types'
-import { DEFAULT_BOOKING_TEXT, DEFAULT_CALLERS } from './constants'
+import type { Activity, Campaign, Email, EmailEvent, FormSubmission, Lead, Meeting, Sequence, Settings, SmartList, Task, Template } from './types'
+import { DEFAULT_SETTINGS } from './constants'
 import { demoData } from './demo'
 
-export type Table = 'leads' | 'activities' | 'callbacks'
-export type Change =
-  | { table: 'leads'; row: Lead; deleted?: boolean }
-  | { table: 'activities'; row: Activity; deleted?: boolean }
-  | { table: 'callbacks'; row: Callback; deleted?: boolean }
-
-export interface Snapshot {
-  leads: Lead[]
-  activities: Activity[]
-  callbacks: Callback[]
-  settings: Settings
+// Every table the app reads and writes. Live table names carry a crm_ prefix so
+// they never clash with other tools in the same Supabase project.
+export interface Rows {
+  leads: Lead
+  activities: Activity
+  tasks: Task
+  meetings: Meeting
+  emails: Email
+  email_events: EmailEvent
+  sequences: Sequence
+  campaigns: Campaign
+  lists: SmartList
+  templates: Template
+  forms: FormSubmission
 }
+export type Table = keyof Rows
+export const TABLES: Table[] = ['leads', 'activities', 'tasks', 'meetings', 'emails', 'email_events', 'sequences', 'campaigns', 'lists', 'templates', 'forms']
+
+export type Change = { [K in Table]: { table: K; row: Rows[K]; deleted?: boolean } }[Table]
+
+export type Snapshot = { [K in Table]: Rows[K][] } & { settings: Settings }
 
 export interface Session {
   name: string
@@ -27,23 +36,19 @@ export interface Backend {
   signIn(emailOrName: string, password: string): Promise<Session>
   signOut(): Promise<void>
   load(): Promise<Snapshot>
-  insertLeads(rows: Lead[]): Promise<void>
-  updateLead(id: string, patch: Partial<Lead>): Promise<void>
-  insertActivity(row: Activity): Promise<void>
-  insertCallback(row: Callback): Promise<void>
-  updateCallback(id: string, patch: Partial<Callback>): Promise<void>
+  insert<K extends Table>(table: K, rows: Rows[K][]): Promise<void>
+  update<K extends Table>(table: K, id: string, patch: Partial<Rows[K]>): Promise<void>
+  remove(table: Table, id: string): Promise<void>
   saveSettings(s: Settings): Promise<void>
   subscribe(fn: (c: Change) => void): () => void
 }
-
-const DEFAULT_SETTINGS: Settings = { booking_text: DEFAULT_BOOKING_TEXT, callers: DEFAULT_CALLERS }
 
 /* ---------------------------------------------------------------- demo --- */
 // Demo mode keeps everything in this browser. Tabs stay in sync through a
 // BroadcastChannel so two windows behave like K and Ali side by side.
 
-const KEY = 'reboot-dialer:demo:v1'
-const SESSION_KEY = 'reboot-dialer:demo:session'
+const KEY = 'reboot-crm:demo:v2'
+const SESSION_KEY = 'reboot-crm:demo:session'
 
 function readDemo(): Snapshot {
   try {
@@ -52,7 +57,7 @@ function readDemo(): Snapshot {
   } catch {
     /* fall through to seed */
   }
-  const seeded = { ...demoData(), settings: DEFAULT_SETTINGS }
+  const seeded: Snapshot = { ...demoData(), settings: DEFAULT_SETTINGS }
   writeDemo(seeded)
   return seeded
 }
@@ -67,10 +72,10 @@ function writeDemo(s: Snapshot) {
 
 function demoBackend(): Backend {
   let mem: Snapshot | null = null
-  const chan = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('reboot-dialer') : null
+  const chan = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('reboot-crm') : null
   const listeners = new Set<(c: Change) => void>()
   chan?.addEventListener('message', (e) => {
-    mem = null // another tab wrote; reload lazily
+    mem = null
     listeners.forEach((fn) => fn(e.data as Change))
   })
   const db = () => (mem ??= readDemo())
@@ -78,6 +83,7 @@ function demoBackend(): Backend {
     writeDemo(db())
     chan?.postMessage(c)
   }
+  const list = <K extends Table>(t: K) => db()[t] as Rows[K][]
 
   return {
     mode: 'demo',
@@ -109,29 +115,22 @@ function demoBackend(): Backend {
       mem = null
       return structuredClone(db())
     },
-    async insertLeads(rows) {
-      db().leads.push(...rows)
-      rows.forEach((row) => emit({ table: 'leads', row }))
+    async insert(table, rows) {
+      list(table).push(...rows)
+      rows.forEach((row) => emit({ table, row } as Change))
     },
-    async updateLead(id, patch) {
-      const l = db().leads.find((x) => x.id === id)
-      if (!l) return
-      Object.assign(l, patch)
-      emit({ table: 'leads', row: l })
+    async update(table, id, patch) {
+      const r = list(table).find((x) => x.id === id)
+      if (!r) return
+      Object.assign(r, patch)
+      emit({ table, row: r } as Change)
     },
-    async insertActivity(row) {
-      db().activities.push(row)
-      emit({ table: 'activities', row })
-    },
-    async insertCallback(row) {
-      db().callbacks.push(row)
-      emit({ table: 'callbacks', row })
-    },
-    async updateCallback(id, patch) {
-      const c = db().callbacks.find((x) => x.id === id)
-      if (!c) return
-      Object.assign(c, patch)
-      emit({ table: 'callbacks', row: c })
+    async remove(table, id) {
+      const l = list(table) as { id: string }[]
+      const i = l.findIndex((x) => x.id === id)
+      if (i < 0) return
+      const [row] = l.splice(i, 1)
+      emit({ table, row, deleted: true } as Change)
     },
     async saveSettings(s) {
       db().settings = s
@@ -145,6 +144,8 @@ function demoBackend(): Backend {
 }
 
 /* ---------------------------------------------------------------- live --- */
+
+const live = (t: Table) => `crm_${t}`
 
 async function fetchAll<T>(sb: SupabaseClient, table: string, build: (q: any) => any): Promise<T[]> {
   const out: T[] = []
@@ -181,38 +182,35 @@ function liveBackend(url: string, key: string): Backend {
       await sb.auth.signOut()
     },
     async load() {
-      const since = new Date(Date.now() - 45 * 864e5).toISOString()
-      const [leads, activities, callbacks, settingsRow] = await Promise.all([
-        fetchAll<Lead>(sb, 'leads', (q) => q.order('created_at')),
-        fetchAll<Activity>(sb, 'activities', (q) => q.gte('created_at', since).order('created_at')),
-        fetchAll<Callback>(sb, 'callbacks', (q) => q.or(`done_at.is.null,created_at.gte.${since}`).order('due_at')),
-        sb.from('settings').select('value').eq('id', 1).maybeSingle(),
-      ])
-      const settings = { ...DEFAULT_SETTINGS, ...((settingsRow.data?.value as Settings) || {}) }
-      return { leads, activities, callbacks, settings }
+      // Recent history only for the busy tables; everything else in full.
+      const since = new Date(Date.now() - 90 * 864e5).toISOString()
+      const recent = new Set<Table>(['activities', 'email_events'])
+      const results = await Promise.all(
+        TABLES.map((t) =>
+          fetchAll(sb, live(t), (q) => (recent.has(t) ? q.gte('created_at', since).order('created_at') : q.order('created_at'))),
+        ),
+      )
+      const settingsRow = await sb.from('crm_settings').select('value').eq('id', 1).maybeSingle()
+      const snap = Object.fromEntries(TABLES.map((t, i) => [t, results[i]])) as unknown as Snapshot
+      snap.settings = { ...DEFAULT_SETTINGS, ...((settingsRow.data?.value as Settings) || {}) }
+      return snap
     },
-    async insertLeads(rows) {
-      for (let i = 0; i < rows.length; i += 500) check(await sb.from('leads').insert(rows.slice(i, i + 500)))
+    async insert(table, rows) {
+      for (let i = 0; i < rows.length; i += 500) check(await sb.from(live(table)).insert(rows.slice(i, i + 500) as any))
     },
-    async updateLead(id, patch) {
-      check(await sb.from('leads').update(patch).eq('id', id))
+    async update(table, id, patch) {
+      check(await sb.from(live(table)).update(patch as any).eq('id', id))
     },
-    async insertActivity(row) {
-      check(await sb.from('activities').insert(row))
-    },
-    async insertCallback(row) {
-      check(await sb.from('callbacks').insert(row))
-    },
-    async updateCallback(id, patch) {
-      check(await sb.from('callbacks').update(patch).eq('id', id))
+    async remove(table, id) {
+      check(await sb.from(live(table)).delete().eq('id', id))
     },
     async saveSettings(s) {
-      check(await sb.from('settings').upsert({ id: 1, value: s }))
+      check(await sb.from('crm_settings').upsert({ id: 1, value: s }))
     },
     subscribe(fn) {
-      const ch = sb.channel('dialer-sync')
-      for (const table of ['leads', 'activities', 'callbacks'] as Table[]) {
-        ch.on('postgres_changes', { event: '*', schema: 'public', table }, (p: any) => {
+      const ch = sb.channel('crm-sync')
+      for (const table of TABLES) {
+        ch.on('postgres_changes', { event: '*', schema: 'public', table: live(table) }, (p: any) => {
           const deleted = p.eventType === 'DELETE'
           fn({ table, row: deleted ? p.old : p.new, deleted } as Change)
         })

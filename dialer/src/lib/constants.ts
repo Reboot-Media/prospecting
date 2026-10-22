@@ -1,4 +1,15 @@
-import type { Outcome, Pain, Status } from './types'
+import type { EmailEventType, MeetingStatus, Outcome, Pain, Segment, Settings, Stage, Status } from './types'
+
+// Soft badge tones. Each is a light wash, a dark text of the same hue and a faint ring.
+export const TONE = {
+  stone: 'bg-wash text-ink-700 ring-ink-300/40',
+  violet: 'bg-accent-50 text-accent-700 ring-accent-400/30',
+  sage: 'bg-sage-50 text-sage-700 ring-sage-400/40',
+  sand: 'bg-sand-50 text-sand-700 ring-sand-400/40',
+  clay: 'bg-clay-50 text-clay-700 ring-clay-400/40',
+  mist: 'bg-mist-50 text-mist-700 ring-mist-400/40',
+} as const
+export type Tone = keyof typeof TONE
 
 export const STATUS_LABEL: Record<Status, string> = {
   new: 'New',
@@ -11,19 +22,38 @@ export const STATUS_LABEL: Record<Status, string> = {
   dnc: 'Do not call',
 }
 
-export const STATUS_TONE: Record<Status, string> = {
-  new: 'bg-sky-50 text-sky-700 ring-sky-600/15',
-  attempting: 'bg-zinc-100 text-zinc-700 ring-zinc-500/15',
-  callback: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  booked: 'bg-violet-50 text-violet-700 ring-violet-600/15',
-  confirmed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  not_interested: 'bg-zinc-50 text-zinc-500 ring-zinc-400/20',
-  bad_number: 'bg-rose-50 text-rose-700 ring-rose-600/15',
-  dnc: 'bg-rose-50 text-rose-700 ring-rose-600/15',
+export const STATUS_TONE: Record<Status, Tone> = {
+  new: 'mist',
+  attempting: 'stone',
+  callback: 'sand',
+  booked: 'violet',
+  confirmed: 'sage',
+  not_interested: 'stone',
+  bad_number: 'clay',
+  dnc: 'clay',
 }
 
-// Statuses that belong in a dialing queue. Booked, confirmed and dead leads stay out.
 export const DIALABLE: Status[] = ['new', 'attempting', 'callback']
+
+export const STAGES: Stage[] = ['booked', 'confirmed', 'showed', 'proposal', 'won', 'no_show', 'lost']
+export const STAGE_LABEL: Record<Stage, string> = {
+  booked: 'Booked',
+  confirmed: 'Confirmed',
+  showed: 'Showed',
+  no_show: 'No-show',
+  proposal: 'Proposal',
+  won: 'Signed',
+  lost: 'Lost',
+}
+export const STAGE_TONE: Record<Stage, Tone> = {
+  booked: 'violet',
+  confirmed: 'mist',
+  showed: 'sand',
+  no_show: 'clay',
+  proposal: 'sand',
+  won: 'sage',
+  lost: 'stone',
+}
 
 export const PAIN_LABEL: Record<Pain, string> = {
   'never-ads': 'Never ran ads',
@@ -31,20 +61,45 @@ export const PAIN_LABEL: Record<Pain, string> = {
   'ads-running': 'Ads running',
   unknown: 'Unknown',
 }
+export const PAIN_DOT: Record<Pain, string> = {
+  'never-ads': 'bg-mist-400',
+  'ads-stopped': 'bg-sand-400',
+  'ads-running': 'bg-sage-400',
+  unknown: 'bg-ink-300',
+}
 
-export const PAIN_TONE: Record<Pain, string> = {
-  'never-ads': 'bg-sky-500',
-  'ads-stopped': 'bg-amber-500',
-  'ads-running': 'bg-emerald-500',
-  unknown: 'bg-zinc-300',
+export const SEGMENT_LABEL: Record<Segment, string> = { growing: 'Growing', shark: 'Shark', commercial: 'Commercial' }
+
+export const MEETING_LABEL: Record<MeetingStatus, string> = {
+  scheduled: 'Waiting on YES',
+  confirmed: 'Confirmed',
+  showed: 'Showed',
+  no_show: 'No-show',
+  canceled: 'Canceled',
+}
+export const MEETING_TONE: Record<MeetingStatus, Tone> = {
+  scheduled: 'sand',
+  confirmed: 'sage',
+  showed: 'violet',
+  no_show: 'clay',
+  canceled: 'stone',
+}
+
+export const EVENT_LABEL: Record<EmailEventType, string> = {
+  sent: 'Sent',
+  open: 'Opened',
+  click: 'Clicked',
+  reply: 'Replied',
+  bounce: 'Bounced',
+  unsubscribe: 'Unsubscribed',
 }
 
 export interface OutcomeDef {
   key: Outcome
   label: string
   hotkey: string
-  status: Status | null // status the lead moves to; null = depends on attempts
-  conversation: boolean // counted as an owner conversation
+  status: Status | null
+  conversation: boolean
 }
 
 export const OUTCOMES: OutcomeDef[] = [
@@ -69,6 +124,9 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   bad_number: 'Bad number',
   dnc: 'Do not call',
   note: 'Note',
+  stage: 'Stage changed',
+  email: 'Email',
+  form: 'Form filled',
 }
 
 export const CALLBACK_REASONS = [
@@ -80,8 +138,23 @@ export const CALLBACK_REASONS = [
   'Gatekeeper: owner back later',
 ]
 
-// From Script M: the confirmation text, sent from your own cell before the next dial.
 export const DEFAULT_BOOKING_TEXT =
   "Hey {first}, it's {me}. You're locked for {when} to look at {why}. Text me back YES so I hold it."
 
-export const DEFAULT_CALLERS = ['K', 'Ali']
+export const DEFAULT_SETTINGS: Settings = {
+  booking_text: DEFAULT_BOOKING_TEXT,
+  callers: ['K', 'Ali'],
+  daily_dial_goal: 100,
+  daily_email_cap: 50,
+  cc: 's.kazmi@rebootmedia.us',
+  sender: 'k.reid@rebootmedia.us',
+  bounce_pause_pct: 3,
+  booking_link: 'https://calendly.com/hello-rebootmedia/strategycall',
+}
+
+export const FORM_LABEL = {
+  'visibility-check': 'Visibility Check',
+  grow: 'Grow',
+  scale: 'Scale',
+  commercial: 'Commercial',
+} as const
