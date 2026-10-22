@@ -3,6 +3,7 @@ import type { IconName } from '../components/ui'
 export type Route =
   | 'home'
   | 'dial'
+  | 'calls'
   | 'inbox'
   | 'contacts'
   | 'contact'
@@ -16,6 +17,7 @@ export type Route =
   | 'lists'
   | 'reports'
   | 'forms'
+  | 'numbers'
   | 'integrations'
   | 'import'
   | 'settings'
@@ -37,6 +39,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { key: 'home', label: 'Home', icon: 'home' },
       { key: 'dial', label: 'Dial', icon: 'phone' },
+      { key: 'calls', label: 'Calls', icon: 'calls' },
       { key: 'inbox', label: 'Inbox', icon: 'inbox' },
       { key: 'contacts', label: 'Contacts', icon: 'users' },
       { key: 'pipeline', label: 'Pipeline', icon: 'kanban' },
@@ -54,10 +57,14 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { key: 'lists', label: 'Lists', icon: 'layers' },
     ],
   },
-  { section: 'Insight', items: [{ key: 'reports', label: 'Reports', icon: 'chart' }] },
+  {
+    section: 'Insight',
+    items: [{ key: 'reports', label: 'Reports', icon: 'chart' }],
+  },
   {
     section: 'Setup',
     items: [
+      { key: 'numbers', label: 'Phone numbers', icon: 'hash' },
       { key: 'forms', label: 'Forms', icon: 'form' },
       { key: 'integrations', label: 'Integrations', icon: 'plug' },
       { key: 'import', label: 'Import', icon: 'upload' },

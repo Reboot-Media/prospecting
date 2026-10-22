@@ -68,7 +68,11 @@ export const PAIN_DOT: Record<Pain, string> = {
   unknown: 'bg-ink-300',
 }
 
-export const SEGMENT_LABEL: Record<Segment, string> = { growing: 'Growing', shark: 'Shark', commercial: 'Commercial' }
+export const SEGMENT_LABEL: Record<Segment, string> = {
+  growing: 'Growing',
+  shark: 'Shark',
+  commercial: 'Commercial',
+}
 
 export const MEETING_LABEL: Record<MeetingStatus, string> = {
   scheduled: 'Waiting on YES',
@@ -103,14 +107,62 @@ export interface OutcomeDef {
 }
 
 export const OUTCOMES: OutcomeDef[] = [
-  { key: 'no_answer', label: 'No answer', hotkey: '1', status: null, conversation: false },
-  { key: 'voicemail', label: 'Voicemail', hotkey: '2', status: null, conversation: false },
-  { key: 'gatekeeper', label: 'Gatekeeper', hotkey: '3', status: null, conversation: false },
-  { key: 'callback', label: 'Call back', hotkey: '4', status: 'callback', conversation: true },
-  { key: 'booked', label: 'Booked', hotkey: '5', status: 'booked', conversation: true },
-  { key: 'not_interested', label: 'Not interested', hotkey: '6', status: 'not_interested', conversation: true },
-  { key: 'bad_number', label: 'Bad number', hotkey: '7', status: 'bad_number', conversation: false },
-  { key: 'dnc', label: 'Do not call', hotkey: '8', status: 'dnc', conversation: false },
+  {
+    key: 'no_answer',
+    label: 'No answer',
+    hotkey: '1',
+    status: null,
+    conversation: false,
+  },
+  {
+    key: 'voicemail',
+    label: 'Voicemail',
+    hotkey: '2',
+    status: null,
+    conversation: false,
+  },
+  {
+    key: 'gatekeeper',
+    label: 'Gatekeeper',
+    hotkey: '3',
+    status: null,
+    conversation: false,
+  },
+  {
+    key: 'callback',
+    label: 'Call back',
+    hotkey: '4',
+    status: 'callback',
+    conversation: true,
+  },
+  {
+    key: 'booked',
+    label: 'Booked',
+    hotkey: '5',
+    status: 'booked',
+    conversation: true,
+  },
+  {
+    key: 'not_interested',
+    label: 'Not interested',
+    hotkey: '6',
+    status: 'not_interested',
+    conversation: true,
+  },
+  {
+    key: 'bad_number',
+    label: 'Bad number',
+    hotkey: '7',
+    status: 'bad_number',
+    conversation: false,
+  },
+  {
+    key: 'dnc',
+    label: 'Do not call',
+    hotkey: '8',
+    status: 'dnc',
+    conversation: false,
+  },
 ]
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -129,17 +181,9 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   form: 'Form filled',
 }
 
-export const CALLBACK_REASONS = [
-  'Busy, on a roof',
-  'Driving',
-  'Talk to partner first',
-  'Send info first',
-  'After storm season',
-  'Gatekeeper: owner back later',
-]
+export const CALLBACK_REASONS = ['Busy, on a roof', 'Driving', 'Talk to partner first', 'Send info first', 'After storm season', 'Gatekeeper: owner back later']
 
-export const DEFAULT_BOOKING_TEXT =
-  "Hey {first}, it's {me}. You're locked for {when} to look at {why}. Text me back YES so I hold it."
+export const DEFAULT_BOOKING_TEXT = "Hey {first}, it's {me}. You're locked for {when} to look at {why}. Text me back YES so I hold it."
 
 export const DEFAULT_SETTINGS: Settings = {
   booking_text: DEFAULT_BOOKING_TEXT,
@@ -150,7 +194,31 @@ export const DEFAULT_SETTINGS: Settings = {
   sender: 'k.reid@rebootmedia.us',
   bounce_pause_pct: 3,
   booking_link: 'https://calendly.com/hello-rebootmedia/strategycall',
+  call_via: 'cell',
+  record_calls: true,
+  missed_call_task: true,
 }
+
+export const CALL_STATUS_LABEL: Record<import('./types').CallStatus, string> = {
+  live: 'On the call',
+  completed: 'Connected',
+  no_answer: 'No answer',
+  busy: 'Busy',
+  voicemail: 'Voicemail',
+  missed: 'Missed',
+  failed: 'Failed',
+}
+export const CALL_STATUS_TONE: Record<import('./types').CallStatus, Tone> = {
+  live: 'violet',
+  completed: 'sage',
+  no_answer: 'stone',
+  busy: 'stone',
+  voicemail: 'mist',
+  missed: 'clay',
+  failed: 'clay',
+}
+// Where tracking numbers live. Free text is allowed too.
+export const CALL_SOURCES = ['Cold calling', 'Website', 'Google Business Profile', 'Google Ads', 'Meta Ads', 'Cold email', 'Referral', 'Yard sign / truck']
 
 export const FORM_LABEL = {
   'visibility-check': 'Visibility Check',

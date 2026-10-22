@@ -17,7 +17,11 @@ export function Campaigns() {
     const already = new Set(data.emails.filter((e) => e.campaign_id === c.id).map((e) => e.lead_id))
     const leads = data.leads.filter((l) => matchesList(l, { ...list.filter, has_email: true }) && !already.has(l.id) && l.status !== 'dnc')
     const t = new Date().toISOString()
-    const fill = (s: string, l: (typeof leads)[0]) => s.replaceAll('{first}', l.first_name || 'there').replaceAll('{company}', l.company).replaceAll('{city}', l.city)
+    const fill = (s: string, l: (typeof leads)[0]) =>
+      s
+        .replaceAll('{first}', l.first_name || 'there')
+        .replaceAll('{company}', l.company)
+        .replaceAll('{city}', l.city)
     for (const l of leads) {
       const v = c.variants[Math.floor(Math.random() * c.variants.length)]
       const e: Email = {
@@ -59,7 +63,15 @@ export function Campaigns() {
           <Button
             variant="primary"
             onClick={() =>
-              setEdit({ id: uid(), name: '', list_id: data.lists[0]?.id || null, status: 'draft', variants: [{ key: 'A', subject: '', body: 'Hi {first},\n\n\n\nKendall' }], scheduled_at: null, created_at: new Date().toISOString() })
+              setEdit({
+                id: uid(),
+                name: '',
+                list_id: data.lists[0]?.id || null,
+                status: 'draft',
+                variants: [{ key: 'A', subject: '', body: 'Hi {first},\n\n\n\nKendall' }],
+                scheduled_at: null,
+                created_at: new Date().toISOString(),
+              })
             }
           >
             <Icon name="plus" /> New campaign
@@ -82,7 +94,9 @@ export function Campaigns() {
                   sub={`${list?.name || 'No list'} · ${audience} roofers · created ${ago(c.created_at)}`}
                   actions={
                     <>
-                      <Badge tone={c.status === 'sent' ? 'sage' : c.status === 'scheduled' ? 'violet' : 'stone'}>{c.status === 'sent' ? 'Sent' : c.status === 'scheduled' ? 'In approvals' : 'Draft'}</Badge>
+                      <Badge tone={c.status === 'sent' ? 'sage' : c.status === 'scheduled' ? 'violet' : 'stone'}>
+                        {c.status === 'sent' ? 'Sent' : c.status === 'scheduled' ? 'In approvals' : 'Draft'}
+                      </Badge>
                       <Button size="sm" onClick={() => setEdit(c)}>
                         Edit
                       </Button>
@@ -142,7 +156,11 @@ export function Campaigns() {
 function CampaignEditor({ value, close }: { value: Campaign; close(): void }) {
   const { data, save } = useData()
   const [c, setC] = useState(value)
-  const setV = (i: number, p: Partial<Campaign['variants'][0]>) => setC((x) => ({ ...x, variants: x.variants.map((v, k) => (k === i ? { ...v, ...p } : v)) }))
+  const setV = (i: number, p: Partial<Campaign['variants'][0]>) =>
+    setC((x) => ({
+      ...x,
+      variants: x.variants.map((v, k) => (k === i ? { ...v, ...p } : v)),
+    }))
   return (
     <Modal open onClose={close} title={value.name ? 'Edit campaign' : 'New campaign'} wide>
       <div className="space-y-3">
@@ -151,7 +169,12 @@ function CampaignEditor({ value, close }: { value: Campaign; close(): void }) {
             <input value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} className={inputCls} autoFocus />
           </Field>
           <Field label="Send to list">
-            <Select value={c.list_id || ''} onChange={(v) => setC({ ...c, list_id: v || null })} options={data.lists.map((l) => [l.id, l.name] as [string, string])} className="h-9 w-full" />
+            <Select
+              value={c.list_id || ''}
+              onChange={(v) => setC({ ...c, list_id: v || null })}
+              options={data.lists.map((l) => [l.id, l.name] as [string, string])}
+              className="h-9 w-full"
+            />
           </Field>
         </div>
         {c.variants.map((v, i) => (
@@ -159,17 +182,46 @@ function CampaignEditor({ value, close }: { value: Campaign; close(): void }) {
             <div className="mb-2 flex items-center justify-between text-xs font-semibold text-ink-900">
               Variant {v.key}
               {c.variants.length > 1 && (
-                <button className="text-ink-400 hover:text-ink-900" onClick={() => setC((x) => ({ ...x, variants: x.variants.filter((_, k) => k !== i) }))}>
+                <button
+                  className="text-ink-400 hover:text-ink-900"
+                  onClick={() =>
+                    setC((x) => ({
+                      ...x,
+                      variants: x.variants.filter((_, k) => k !== i),
+                    }))
+                  }
+                >
                   Remove
                 </button>
               )}
             </div>
-            <input aria-label={`Variant ${v.key} subject`} value={v.subject} onChange={(e) => setV(i, { subject: e.target.value })} placeholder="Subject" className={`${inputCls} mb-2`} />
+            <input
+              aria-label={`Variant ${v.key} subject`}
+              value={v.subject}
+              onChange={(e) => setV(i, { subject: e.target.value })}
+              placeholder="Subject"
+              className={`${inputCls} mb-2`}
+            />
             <textarea aria-label={`Variant ${v.key} body`} value={v.body} onChange={(e) => setV(i, { body: e.target.value })} rows={5} className={inputCls} />
           </div>
         ))}
         <div className="flex flex-wrap justify-between gap-2">
-          <Button disabled={c.variants.length >= 3} onClick={() => setC((x) => ({ ...x, variants: [...x.variants, { key: 'ABC'[x.variants.length], subject: '', body: x.variants[0].body }] }))}>
+          <Button
+            disabled={c.variants.length >= 3}
+            onClick={() =>
+              setC((x) => ({
+                ...x,
+                variants: [
+                  ...x.variants,
+                  {
+                    key: 'ABC'[x.variants.length],
+                    subject: '',
+                    body: x.variants[0].body,
+                  },
+                ],
+              }))
+            }
+          >
             <Icon name="plus" /> Add A/B variant
           </Button>
           <div className="flex gap-2">

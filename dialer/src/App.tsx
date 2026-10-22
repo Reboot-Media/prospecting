@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { backend, type Session } from './lib/backend'
 import { DataProvider, useData } from './lib/store'
 import { Layout } from './components/Layout'
+import { CallProvider } from './components/CallBar'
 import { Button, Card, Icon, Logo, inputCls } from './components/ui'
 import { Home } from './pages/Home'
 import { Dial } from './pages/Dial'
@@ -21,6 +22,8 @@ import { Forms } from './pages/Forms'
 import { Integrations } from './pages/Integrations'
 import { Import } from './pages/Import'
 import { Settings } from './pages/Settings'
+import { Calls, calledBackAfter } from './pages/Calls'
+import { Numbers } from './pages/Numbers'
 import { alreadyAlerted, markAlerted, notify } from './lib/alerts'
 import { when } from './lib/format'
 import { href, parseHash, type Loc, type Route } from './lib/router'
@@ -28,14 +31,19 @@ import { href, parseHash, type Loc, type Route } from './lib/router'
 export default function App() {
   const [me, setMe] = useState<Session | null | undefined>(undefined)
   useEffect(() => {
-    backend.session().then(setMe).catch(() => setMe(null))
+    backend
+      .session()
+      .then(setMe)
+      .catch(() => setMe(null))
   }, [])
   const signedOut = useCallback(() => setMe(null), [])
   if (me === undefined) return null
   if (!me) return <Login onIn={setMe} />
   return (
     <DataProvider me={me} onSignOut={signedOut}>
-      <Shell />
+      <CallProvider>
+        <Shell />
+      </CallProvider>
     </DataProvider>
   )
 }
@@ -134,21 +142,31 @@ function Shell() {
       const l = c.lead_id ? leadById.get(c.lead_id) : undefined
       const title = c.kind === 'callback' ? `Callback due: ${l?.company || 'lead'}` : `Task due: ${l?.company || c.reason}`
       notify(title, `${c.reason} · ${when(c.due_at)}`, () => (c.lead_id ? callNow(c.lead_id) : go('tasks')))
-      setToasts((t) => [...t, { id: c.id, leadId: c.lead_id, text: `${l?.company || 'To-do'} · ${c.reason}` }])
+      setToasts((t) => [
+        ...t,
+        {
+          id: c.id,
+          leadId: c.lead_id,
+          text: `${l?.company || 'To-do'} · ${c.reason}`,
+        },
+      ])
     })
     markAlerted(seen)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, myDue.length])
 
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString()
   const badges = {
+    calls: data.calls.filter((c) => c.status === 'missed' && c.started_at >= weekAgo && !calledBackAfter(c, data.calls)).length,
     tasks: myDue.length,
     approvals: data.emails.filter((e) => e.status === 'draft').length,
     inbox: (() => {
       const last = new Map<string, string>()
-      for (const e of data.emails) if (e.status !== 'draft') {
-        const at = e.sent_at || e.created_at
-        if ((last.get(e.lead_id) || '') < at) last.set(e.lead_id, at)
-      }
+      for (const e of data.emails)
+        if (e.status !== 'draft') {
+          const at = e.sent_at || e.created_at
+          if ((last.get(e.lead_id) || '') < at) last.set(e.lead_id, at)
+        }
       return data.emails.filter((e) => e.direction === 'in' && (e.sent_at || e.created_at) === last.get(e.lead_id)).length
     })(),
   }
@@ -158,6 +176,8 @@ function Shell() {
     <Layout route={r} go={go} openContact={openContact} badges={badges}>
       {r === 'home' && <Home go={go} openContact={openContact} callNow={callNow} />}
       {r === 'dial' && <Dial focusId={focus} clearFocus={clearFocus} />}
+      {r === 'calls' && <Calls openContact={openContact} />}
+      {r === 'numbers' && <Numbers />}
       {r === 'inbox' && <Inbox openContact={openContact} />}
       {r === 'contacts' && <Contacts openContact={openContact} />}
       {r === 'contact' && <Contact id={loc.id} back={() => go('contacts')} callNow={callNow} />}

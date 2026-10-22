@@ -97,16 +97,16 @@ export interface ImportResult {
   skippedByTag: number
 }
 
-export function buildLeads(
-  table: string[][],
-  map: Partial<Record<Field, number>>,
-  opts: ImportOptions,
-  existingPhones: Set<string>,
-): ImportResult {
+export function buildLeads(table: string[][], map: Partial<Record<Field, number>>, opts: ImportOptions, existingPhones: Set<string>): ImportResult {
   const [, ...body] = table
   const get = (r: string[], f: Field) => (map[f] !== undefined ? (r[map[f]!] || '').trim() : '')
   const seen = new Set(existingPhones)
-  const res: ImportResult = { rows: [], skippedNoPhone: 0, skippedDuplicate: 0, skippedByTag: 0 }
+  const res: ImportResult = {
+    rows: [],
+    skippedNoPhone: 0,
+    skippedDuplicate: 0,
+    skippedByTag: 0,
+  }
   const t = new Date().toISOString()
   const only = opts.onlyTag.trim().toLowerCase()
   const skip = opts.skipTags.map((s) => s.trim().toLowerCase()).filter(Boolean)

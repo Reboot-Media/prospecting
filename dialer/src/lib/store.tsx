@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { backend, type Change, type Rows, type Session, type Snapshot, type Table } from './backend'
-import type { Activity, Email, EmailEvent, Lead, Meeting, MeetingStatus, Outcome, Settings, Stage, Task } from './types'
+import type { Activity, Call, CallStatus, Email, EmailEvent, Lead, Meeting, MeetingStatus, Outcome, Settings, Stage, Task } from './types'
 import { OUTCOMES } from './constants'
 import { uid } from './format'
 
@@ -33,6 +33,20 @@ interface Ctx {
   enroll(leadIds: string[], sequenceId: string): Promise<void>
   saveSettings(s: Settings): Promise<void>
   signOut(): Promise<void>
+  // Calls: one row per dial. startCall opens it, endCall stamps the length,
+  // logOutcome attaches the result (or creates the row if the dial happened off-app).
+  startCall(lead: Lead, via: Call['via']): Promise<Call>
+  endCall(id: string, connectedSec: number): Promise<void>
+  contactFromCall(call: Call): Promise<string>
+}
+
+// What a call's status should read once its outcome is known.
+export function callStatusFor(outcome: Outcome | null, connected: boolean): CallStatus {
+  if (outcome === 'no_answer') return 'no_answer'
+  if (outcome === 'voicemail') return 'voicemail'
+  if (outcome === 'bad_number') return 'failed'
+  if (outcome) return 'completed'
+  return connected ? 'completed' : 'no_answer'
 }
 
 const DataCtx = createContext<Ctx | null>(null)
@@ -53,7 +67,10 @@ function upsert<T extends { id: string }>(list: T[], row: T, deleted?: boolean):
 }
 
 function applyChange(s: Snapshot, c: Change): Snapshot {
-  return { ...s, [c.table]: upsert(s[c.table] as { id: string }[], c.row as { id: string }, c.deleted) }
+  return {
+    ...s,
+    [c.table]: upsert(s[c.table] as { id: string }[], c.row as { id: string }, c.deleted),
+  }
 }
 
 const now = () => new Date().toISOString()
@@ -84,7 +101,10 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
       await persist()
     } catch (e: any) {
       setError(`Save failed: ${e?.message || e}. Reloading.`)
-      backend.load().then(setData).catch(() => {})
+      backend
+        .load()
+        .then(setData)
+        .catch(() => {})
     }
   }, [])
 
@@ -118,7 +138,14 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     [commit],
   )
 
-  const act = (lead_id: string, outcome: Outcome, note = ''): Activity => ({ id: uid(), lead_id, user_name: me.name, outcome, note, created_at: now() })
+  const act = (lead_id: string, outcome: Outcome, note = ''): Activity => ({
+    id: uid(),
+    lead_id,
+    user_name: me.name,
+    outcome,
+    note,
+    created_at: now(),
+  })
 
   const logOutcome = useCallback<Ctx['logOutcome']>(
     async (lead, outcome, extra = {}) => {
@@ -141,7 +168,17 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
         patch.stage = 'booked'
         patch.deal_value = lead.deal_value || 14000
         if (extra.meeting_at) {
-          const m: Meeting = { id: uid(), lead_id: lead.id, owner: patch.owner!, starts_at: extra.meeting_at, minutes: 30, status: 'scheduled', why_now: extra.why_now || '', source: 'dialer', created_at: t }
+          const m: Meeting = {
+            id: uid(),
+            lead_id: lead.id,
+            owner: patch.owner!,
+            starts_at: extra.meeting_at,
+            minutes: 30,
+            status: 'scheduled',
+            why_now: extra.why_now || '',
+            source: 'dialer',
+            created_at: t,
+          }
           inserts.push({ table: 'meetings', row: m })
         }
       }
@@ -152,10 +189,66 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
       )
       inserts.push({ table: 'activities', row: a })
       if (extra.callback) {
-        const cb: Task = { id: uid(), lead_id: lead.id, kind: 'callback', owner: extra.callback.owner, due_at: extra.callback.due_at, reason: extra.callback.reason, done_at: null, created_by: me.name, created_at: t }
+        const cb: Task = {
+          id: uid(),
+          lead_id: lead.id,
+          kind: 'callback',
+          owner: extra.callback.owner,
+          due_at: extra.callback.due_at,
+          reason: extra.callback.reason,
+          done_at: null,
+          created_by: me.name,
+          created_at: t,
+        }
         inserts.push({ table: 'tasks', row: cb })
       }
-      const updates: Change[] = [{ table: 'leads', row: { ...lead, ...patch } }, ...open.map((c) => ({ table: 'tasks' as const, row: { ...c, done_at: t } }))]
+      const updates: Change[] = [
+        { table: 'leads', row: { ...lead, ...patch } },
+        ...open.map((c) => ({
+          table: 'tasks' as const,
+          row: { ...c, done_at: t },
+        })),
+      ]
+      // Tie the outcome to this dial's call row, or record the dial if it happened outside the app.
+      if (OUTCOMES.some((o) => o.key === outcome)) {
+        const since = new Date(Date.now() - 2 * 3600e3).toISOString()
+        const call = (ref.current?.calls || [])
+          .filter((c) => c.lead_id === lead.id && c.direction === 'out' && c.user_name === me.name && !c.outcome && c.created_at >= since)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+        if (call) {
+          updates.push({
+            table: 'calls',
+            row: {
+              ...call,
+              outcome,
+              status: call.status === 'live' ? 'live' : callStatusFor(outcome, call.duration_sec > 0),
+            },
+          })
+        } else {
+          const line = (ref.current?.numbers || []).find((n) => n.kind === 'line' && n.owner === me.name && n.active)
+          inserts.push({
+            table: 'calls',
+            row: {
+              id: uid(),
+              lead_id: lead.id,
+              direction: 'out',
+              user_name: me.name,
+              from_number: line?.number || '',
+              to_number: lead.phone,
+              number_id: line?.id || null,
+              source: 'Cold calling',
+              status: callStatusFor(outcome, false),
+              started_at: t,
+              duration_sec: 0,
+              recording_url: '',
+              outcome,
+              via: 'cell',
+              provider_id: null,
+              created_at: t,
+            },
+          })
+        }
+      }
       await commit(inserts, updates)
     },
     [me.name, commit],
@@ -166,8 +259,27 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
       const t = now()
       const m = (ref.current?.meetings || []).filter((x) => x.lead_id === lead.id && x.status === 'scheduled')
       await commit(
-        [{ table: 'activities', row: act(lead.id, 'confirmed', 'Replied YES') }],
-        [{ table: 'leads', row: { ...lead, status: 'confirmed', stage: 'confirmed', updated_at: t } }, ...m.map((x) => ({ table: 'meetings' as const, row: { ...x, status: 'confirmed' as const } }))],
+        [
+          {
+            table: 'activities',
+            row: act(lead.id, 'confirmed', 'Replied YES'),
+          },
+        ],
+        [
+          {
+            table: 'leads',
+            row: {
+              ...lead,
+              status: 'confirmed',
+              stage: 'confirmed',
+              updated_at: t,
+            },
+          },
+          ...m.map((x) => ({
+            table: 'meetings' as const,
+            row: { ...x, status: 'confirmed' as const },
+          })),
+        ],
       )
     },
     [me.name, commit],
@@ -186,7 +298,15 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
   const setStage = useCallback<Ctx['setStage']>(
     async (lead, stage) => {
       if (lead.stage === stage) return
-      await commit([{ table: 'activities', row: act(lead.id, 'stage', stage ? `Moved to ${stage}` : 'Removed from pipeline') }], [{ table: 'leads', row: { ...lead, stage, updated_at: now() } }])
+      await commit(
+        [
+          {
+            table: 'activities',
+            row: act(lead.id, 'stage', stage ? `Moved to ${stage}` : 'Removed from pipeline'),
+          },
+        ],
+        [{ table: 'leads', row: { ...lead, stage, updated_at: now() } }],
+      )
     },
     [me.name, commit],
   )
@@ -194,10 +314,27 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
   const setMeetingStatus = useCallback<Ctx['setMeetingStatus']>(
     async (m, status) => {
       const lead = ref.current?.leads.find((l) => l.id === m.lead_id)
-      const stage: Stage | null = status === 'showed' ? 'showed' : status === 'no_show' ? 'no_show' : status === 'confirmed' ? 'confirmed' : lead?.stage ?? null
+      const stage: Stage | null = status === 'showed' ? 'showed' : status === 'no_show' ? 'no_show' : status === 'confirmed' ? 'confirmed' : (lead?.stage ?? null)
       const updates: Change[] = [{ table: 'meetings', row: { ...m, status } }]
-      if (lead && stage !== lead.stage) updates.push({ table: 'leads', row: { ...lead, stage, status: status === 'confirmed' ? 'confirmed' : lead.status, updated_at: now() } })
-      await commit([{ table: 'activities', row: act(m.lead_id, 'stage', `Meeting marked ${status.replace('_', '-')}`) }], updates)
+      if (lead && stage !== lead.stage)
+        updates.push({
+          table: 'leads',
+          row: {
+            ...lead,
+            stage,
+            status: status === 'confirmed' ? 'confirmed' : lead.status,
+            updated_at: now(),
+          },
+        })
+      await commit(
+        [
+          {
+            table: 'activities',
+            row: act(m.lead_id, 'stage', `Meeting marked ${status.replace('_', '-')}`),
+          },
+        ],
+        updates,
+      )
     },
     [me.name, commit],
   )
@@ -205,7 +342,14 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
   const completeTask = useCallback<Ctx['completeTask']>(async (t) => commit([], [{ table: 'tasks', row: { ...t, done_at: now() } }]), [commit])
   const rescheduleTask = useCallback<Ctx['rescheduleTask']>(async (t, due_at) => commit([], [{ table: 'tasks', row: { ...t, due_at } }]), [commit])
 
-  const importLeads = useCallback<Ctx['importLeads']>(async (rows) => commit(rows.map((row) => ({ table: 'leads' as const, row })), []), [commit])
+  const importLeads = useCallback<Ctx['importLeads']>(
+    async (rows) =>
+      commit(
+        rows.map((row) => ({ table: 'leads' as const, row })),
+        [],
+      ),
+    [commit],
+  )
 
   const draftEmail = useCallback<Ctx['draftEmail']>(
     async (lead, subject, body, branded) => {
@@ -246,11 +390,31 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
       const t = now()
       const list = (ref.current?.emails || []).filter((e) => ids.includes(e.id) && e.status === 'draft')
       const demo = backend.mode === 'demo'
-      const updates: Change[] = list.map((e) => ({ table: 'emails', row: { ...e, status: demo ? 'sent' : 'approved', sent_at: demo ? t : null } }))
+      const updates: Change[] = list.map((e) => ({
+        table: 'emails',
+        row: {
+          ...e,
+          status: demo ? 'sent' : 'approved',
+          sent_at: demo ? t : null,
+        },
+      }))
       const inserts: Change[] = demo
         ? list.flatMap((e) => [
-            { table: 'email_events' as const, row: { id: uid(), email_id: e.id, lead_id: e.lead_id, type: 'sent', url: '', created_at: t } as EmailEvent },
-            { table: 'activities' as const, row: act(e.lead_id, 'email', `Sent "${e.subject}"`) },
+            {
+              table: 'email_events' as const,
+              row: {
+                id: uid(),
+                email_id: e.id,
+                lead_id: e.lead_id,
+                type: 'sent',
+                url: '',
+                created_at: t,
+              } as EmailEvent,
+            },
+            {
+              table: 'activities' as const,
+              row: act(e.lead_id, 'email', `Sent "${e.subject}"`),
+            },
           ])
         : []
       await commit(inserts, updates)
@@ -261,7 +425,19 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
   const enroll = useCallback<Ctx['enroll']>(
     async (leadIds, sequenceId) => {
       const leads = (ref.current?.leads || []).filter((l) => leadIds.includes(l.id) && l.email && l.email_status === 'ok')
-      await commit([], leads.map((l) => ({ table: 'leads' as const, row: { ...l, sequence_id: sequenceId, sequence_step: 0, sequence_state: 'active' as const, updated_at: now() } })))
+      await commit(
+        [],
+        leads.map((l) => ({
+          table: 'leads' as const,
+          row: {
+            ...l,
+            sequence_id: sequenceId,
+            sequence_step: 0,
+            sequence_state: 'active' as const,
+            updated_at: now(),
+          },
+        })),
+      )
     },
     [commit],
   )
@@ -270,6 +446,105 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     setData((d) => (d ? { ...d, settings: s } : d))
     await backend.saveSettings(s)
   }, [])
+
+  const startCall = useCallback<Ctx['startCall']>(
+    async (lead, via) => {
+      const t = now()
+      const line = (ref.current?.numbers || []).find((n) => n.kind === 'line' && n.owner === me.name && n.active)
+      const c: Call = {
+        id: uid(),
+        lead_id: lead.id,
+        direction: 'out',
+        user_name: me.name,
+        from_number: line?.number || '',
+        to_number: lead.phone,
+        number_id: line?.id || null,
+        source: 'Cold calling',
+        status: 'live',
+        started_at: t,
+        duration_sec: 0,
+        recording_url: '',
+        outcome: null,
+        via,
+        provider_id: null,
+        created_at: t,
+      }
+      await commit([{ table: 'calls', row: c }], [])
+      return c
+    },
+    [me.name, commit],
+  )
+
+  const endCall = useCallback<Ctx['endCall']>(
+    async (id, connectedSec) => {
+      const c = (ref.current?.calls || []).find((x) => x.id === id)
+      if (!c) return
+      const dur = Math.max(c.duration_sec, Math.round(connectedSec))
+      await commit(
+        [],
+        [
+          {
+            table: 'calls',
+            row: {
+              ...c,
+              duration_sec: dur,
+              status: callStatusFor(c.outcome, dur > 0),
+            },
+          },
+        ],
+      )
+    },
+    [commit],
+  )
+
+  // An unknown number called in: make it a contact and link its calls.
+  const contactFromCall = useCallback<Ctx['contactFromCall']>(
+    async (call) => {
+      const t = now()
+      const lead: Lead = {
+        id: uid(),
+        ghl_id: null,
+        first_name: '',
+        last_name: '',
+        company: `Caller ${call.from_number}`,
+        phone: call.from_number,
+        email: '',
+        city: '',
+        state: '',
+        website: '',
+        pain: 'unknown',
+        segment: 'growing',
+        status: 'new',
+        stage: null,
+        deal_value: 0,
+        owner: me.name,
+        tags: ['inbound-call'],
+        notes: '',
+        source: `Inbound call · ${call.source}`,
+        attempts: 0,
+        last_outcome: null,
+        last_called_at: null,
+        meeting_at: null,
+        why_now: '',
+        sequence_id: null,
+        sequence_step: 0,
+        sequence_state: null,
+        email_status: 'ok',
+        created_at: t,
+        updated_at: t,
+      }
+      const same = (ref.current?.calls || []).filter((c) => !c.lead_id && (c.from_number === call.from_number || c.to_number === call.from_number))
+      await commit(
+        [{ table: 'leads', row: lead }],
+        same.map((c) => ({
+          table: 'calls' as const,
+          row: { ...c, lead_id: lead.id },
+        })),
+      )
+      return lead.id
+    },
+    [me.name, commit],
+  )
 
   const signOut = useCallback(async () => {
     await backend.signOut()
@@ -308,6 +583,9 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     enroll,
     saveSettings,
     signOut,
+    startCall,
+    endCall,
+    contactFromCall,
   }
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>
 }

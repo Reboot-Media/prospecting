@@ -38,7 +38,9 @@ export function CallbackModal({ lead, open, onClose, onDone }: { lead: Lead; ope
   async function save() {
     if (!valid || !dueDate) return
     setSaving(true)
-    await logOutcome(lead, 'callback', { callback: { due_at: dueDate.toISOString(), reason: reason.trim(), owner } })
+    await logOutcome(lead, 'callback', {
+      callback: { due_at: dueDate.toISOString(), reason: reason.trim(), owner },
+    })
     setSaving(false)
     onDone()
   }
@@ -95,11 +97,16 @@ export function CallbackModal({ lead, open, onClose, onDone }: { lead: Lead; ope
 
 export function fillTemplate(tpl: string, lead: Lead, me: string, meetingIso: string, why: string): string {
   return tpl
-    .split('{first}').join(lead.first_name || 'there')
-    .split('{me}').join(me === 'K' ? 'Kendall' : me)
-    .split('{when}').join(meetingIso ? whenSpoken(meetingIso) : '[time]')
-    .split('{why}').join(why.trim() || 'where jobs are leaking')
-    .split('{company}').join(lead.company)
+    .split('{first}')
+    .join(lead.first_name || 'there')
+    .split('{me}')
+    .join(me === 'K' ? 'Kendall' : me)
+    .split('{when}')
+    .join(meetingIso ? whenSpoken(meetingIso) : '[time]')
+    .split('{why}')
+    .join(why.trim() || 'where jobs are leaking')
+    .split('{company}')
+    .join(lead.company)
 }
 
 export function smsHref(phone: string, body: string): string {
@@ -129,7 +136,11 @@ export function BookedModal({ lead, open, onClose, onDone }: { lead: Lead; open:
   async function save(sendText: boolean) {
     if (!valid) return
     setSaving(true)
-    await logOutcome(lead, 'booked', { meeting_at: meetingIso, why_now: why.trim(), note: `Meeting ${whenSpoken(meetingIso)}. Why now: ${why.trim()}` })
+    await logOutcome(lead, 'booked', {
+      meeting_at: meetingIso,
+      why_now: why.trim(),
+      note: `Meeting ${whenSpoken(meetingIso)}. Why now: ${why.trim()}`,
+    })
     setSaving(false)
     if (sendText) window.location.href = smsHref(lead.phone, text)
     onDone()
@@ -149,7 +160,12 @@ export function BookedModal({ lead, open, onClose, onDone }: { lead: Lead; open:
             <span className="text-xs font-medium text-ink-700">Confirmation text</span>
             <button
               className="text-xs text-ink-500 hover:text-ink-900"
-              onClick={() => navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {})}
+              onClick={() =>
+                navigator.clipboard
+                  ?.writeText(text)
+                  .then(() => setCopied(true))
+                  .catch(() => {})
+              }
             >
               {copied ? 'Copied' : 'Copy'}
             </button>

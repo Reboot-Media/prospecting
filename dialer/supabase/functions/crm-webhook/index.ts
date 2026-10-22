@@ -41,15 +41,35 @@ Deno.serve(async (req) => {
     }
     const { data: lead } = await sb.from('crm_leads').select('*').eq('email', from).maybeSingle()
     if (lead) {
-      const { data: last } = await sb.from('crm_emails').select('*').eq('lead_id', lead.id).eq('direction', 'out').eq('status', 'sent').order('sent_at', { ascending: false }).limit(1).maybeSingle()
-      await sb
+      const { data: last } = await sb
         .from('crm_emails')
-        .insert({ lead_id: lead.id, direction: 'in', from_addr: from, to_addr: String((d.to || [])[0] || ''), subject: String(d.subject || ''), body: text.slice(0, 20000), status: 'received', sent_at: at, provider_id: d.email_id || null, created_by: 'Inbound' })
+        .select('*')
+        .eq('lead_id', lead.id)
+        .eq('direction', 'out')
+        .eq('status', 'sent')
+        .order('sent_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      await sb.from('crm_emails').insert({
+        lead_id: lead.id,
+        direction: 'in',
+        from_addr: from,
+        to_addr: String((d.to || [])[0] || ''),
+        subject: String(d.subject || ''),
+        body: text.slice(0, 20000),
+        status: 'received',
+        sent_at: at,
+        provider_id: d.email_id || null,
+        created_by: 'Inbound',
+      })
       if (last) {
         await sb.from('crm_emails').update({ replied_at: at }).eq('id', last.id)
         await sb.from('crm_email_events').insert({ email_id: last.id, lead_id: lead.id, type: 'reply', created_at: at })
       }
-      await sb.from('crm_leads').update({ sequence_state: lead.sequence_state === 'active' ? 'replied' : lead.sequence_state, updated_at: at }).eq('id', lead.id)
+      await sb
+        .from('crm_leads')
+        .update({ sequence_state: lead.sequence_state === 'active' ? 'replied' : lead.sequence_state, updated_at: at })
+        .eq('id', lead.id)
       await sb.from('crm_activities').insert({ lead_id: lead.id, user_name: 'Inbound', outcome: 'email', note: `Replied: ${text.slice(0, 140)}` })
     }
     // Forward so replies still reach K's normal inbox.
@@ -67,14 +87,24 @@ Deno.serve(async (req) => {
   }
 
   // Tracking events reference the email Resend sent.
-  const { data: e } = await sb.from('crm_emails').select('*').eq('provider_id', d.email_id || '').maybeSingle()
+  const { data: e } = await sb
+    .from('crm_emails')
+    .select('*')
+    .eq('provider_id', d.email_id || '')
+    .maybeSingle()
   if (!e) return json({ ok: true, note: 'unknown email' })
 
   if (evt.type === 'email.opened') {
-    await sb.from('crm_emails').update({ opens: e.opens + 1, first_open_at: e.first_open_at || at, last_open_at: at }).eq('id', e.id)
+    await sb
+      .from('crm_emails')
+      .update({ opens: e.opens + 1, first_open_at: e.first_open_at || at, last_open_at: at })
+      .eq('id', e.id)
     await sb.from('crm_email_events').insert({ email_id: e.id, lead_id: e.lead_id, type: 'open', created_at: at })
   } else if (evt.type === 'email.clicked') {
-    await sb.from('crm_emails').update({ clicks: e.clicks + 1 }).eq('id', e.id)
+    await sb
+      .from('crm_emails')
+      .update({ clicks: e.clicks + 1 })
+      .eq('id', e.id)
     await sb.from('crm_email_events').insert({ email_id: e.id, lead_id: e.lead_id, type: 'click', url: String(d.click?.link || ''), created_at: at })
   } else if (evt.type === 'email.bounced') {
     await sb.from('crm_emails').update({ status: 'bounced' }).eq('id', e.id)

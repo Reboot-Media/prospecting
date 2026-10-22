@@ -7,6 +7,7 @@ The CRM K and Ali run Reboot sales on, built to replace GHL. It started as a dia
 **Workspace**
 - **Home**: your dials against the daily goal, team stats, show rate, dials chart, "needs you now" (callbacks, approvals, replies), roofers who are hot from email, upcoming meetings, team table.
 - **Dial**: one roofer at a time from a queue. Outcome required after every call (keys 1–8). Call back forces date, time, reason and owner; due callbacks jump the queue and beep. Booked records the time and his "Why now?" words, creates the meeting, and opens the Script M confirmation text. Booked stays booked until he replies YES.
+- **Calls**: every dial and every inbound call with who, which line or tracking number, result, length and recording. Tabs for outbound, inbound, missed and recorded; filter by source, caller and date; call back or add an unknown caller as a contact. Missed calls not yet called back show on Home and in the sidebar badge.
 - **Inbox**: one thread per roofer with every email in and out, opens and clicks under each one, and reply in place (replies go to Approvals).
 - **Contacts**: every roofer with tabs (to dial, pipeline, clients, dead), smart-list filter, bulk enroll in a sequence or reassign. Each contact has a record page: a dial-to-signed stepper, call log, details, timeline, email tracking, sequence progress, meetings, tags, form fills and quick tasks.
 - **Pipeline**: Booked → Confirmed → Showed → Proposal → Signed, plus No-show and Lost. Drag cards; deal value defaults to the first 90 days ($5K + 3 × $3K).
@@ -19,9 +20,9 @@ The CRM K and Ali run Reboot sales on, built to replace GHL. It started as a dia
 - **Approvals**: nothing sends without K's OK. Every draft (sequence, campaign, reply, one-off) waits here.
 - **Templates** and **Lists** (smart lists from tags, pain, segment, status).
 
-**Insight**: **Reports** with the calling funnel against the Jul–Oct baseline, dials per day, email results by lane, call outcomes and callers.
+**Insight**: **Reports** with the calling funnel against the Jul–Oct baseline, dials per day, best hours to call, inbound calls by source, talk time per caller, email results by lane, call outcomes and callers.
 
-**Setup**: **Forms** (website fills), **Integrations**, **Import** (GHL CSV, all contacts, dedupe by phone or email), **Settings** (callers, dial goal, booking text, sender, CC, cap, bounce pause).
+**Setup**: **Phone numbers** (calling lines for K and Ali, tracking numbers per source with 30-day stats), **Forms** (website fills), **Integrations**, **Import** (GHL CSV, all contacts, dedupe by phone or email), **Settings** (callers, dial goal, booking text, sender, CC, cap, bounce pause).
 
 ## How email works
 
@@ -32,6 +33,12 @@ Sending goes through **Resend** (K's pick, 2026-10-22). Free tier: 100 a day, 3,
 - `supabase/functions/crm-form`: the website's form handler posts here at cutover; fills become contacts.
 
 Opens are a soft signal (Apple Mail opens everything). Clicks, replies and bookings are the numbers to trust.
+
+## How phone tracking works
+
+- Every call from the CRM (Dial screen, contact page, Calls page) creates a call record the moment you press Call, and the outcome you log is attached to it. Settings → Phone picks how calls go out: **My phone** (opens your cell's dialer; the length is what you time in the call bar) or **Browser** (calls through the carrier from the laptop, recorded).
+- `supabase/functions/crm-voice` (Twilio): browser calling tokens for K and Ali, recorded outbound calls with the real length, inbound calls to any tracking number logged with their source and rung through to the owner's browser and cell, missed calls turned into voicemail plus a callback task, and recordings streamed only to signed-in teammates.
+- Turn it on: buy numbers in Twilio, add them under Phone numbers, point each number's voice webhook at `.../functions/v1/crm-voice/inbound`, create a TwiML app pointing at `.../crm-voice/outbound`, and add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_TWIML_APP_SID` as Supabase function secrets. Until then the function answers 401/503 and everything else works with "My phone".
 
 ## Run it
 
@@ -45,7 +52,7 @@ With no `.env`, it runs in **demo mode**: fictional roofers (555 numbers, exampl
 ## Live setup (done 2026-10-22 unless noted)
 
 - **Database**: Reboot's Supabase project `ops` (fqlgfmuiedrdowxnvcjv). `supabase/schema.sql` applied. Only emails in `crm_team` (K, Ali) can read or write anything, even if someone else signs up.
-- **Functions**: `crm-send`, `crm-webhook`, `crm-form` deployed. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
+- **Functions**: `crm-send`, `crm-webhook`, `crm-form`, `crm-voice` deployed. Phone tables `crm_calls` and `crm_numbers` applied. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
 - **Front end**: `.env.production` holds the public URL and publishable key. Build `npm run build`, output `dist`, host on Cloudflare Pages.
-- **Waiting on K**: logins for K and Ali (Supabase → Authentication → Add user); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
+- **Waiting on K**: phone carrier pick and Twilio secrets (see phone tracking above); logins for K and Ali (Supabase → Authentication → Add user); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
 - **Later**: point the website's `/api/lead` at `crm-form`, import the GHL export, run both side by side for a week, then cancel GHL.

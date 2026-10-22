@@ -3,10 +3,12 @@ import { OUTCOMES } from '../lib/constants'
 import type { Lead, Outcome } from '../lib/types'
 import { useData } from '../lib/store'
 import { BookedModal, CallbackModal } from './OutcomeModals'
+import { useCall } from './CallBar'
 
 // One click per call. Call back and Booked open a short form; everything else saves at once.
 export function OutcomeBar({ lead, onLogged, hotkeys }: { lead: Lead; onLogged(o: Outcome): void; hotkeys?: boolean }) {
   const { logOutcome } = useData()
+  const { done } = useCall()
   const [modal, setModal] = useState<'callback' | 'booked' | null>(null)
   const [busy, setBusy] = useState(false)
   const [armDnc, setArmDnc] = useState(false) // Do not call needs a second click
@@ -19,6 +21,7 @@ export function OutcomeBar({ lead, onLogged, hotkeys }: { lead: Lead; onLogged(o
     setBusy(true)
     await logOutcome(lead, o)
     setBusy(false)
+    done(lead.id)
     onLogged(o)
   }
 
@@ -61,8 +64,8 @@ export function OutcomeBar({ lead, onLogged, hotkeys }: { lead: Lead; onLogged(o
           </button>
         ))}
       </div>
-      <CallbackModal lead={lead} open={modal === 'callback'} onClose={() => setModal(null)} onDone={() => (setModal(null), onLogged('callback'))} />
-      <BookedModal lead={lead} open={modal === 'booked'} onClose={() => setModal(null)} onDone={() => (setModal(null), onLogged('booked'))} />
+      <CallbackModal lead={lead} open={modal === 'callback'} onClose={() => setModal(null)} onDone={() => (setModal(null), done(lead.id), onLogged('callback'))} />
+      <BookedModal lead={lead} open={modal === 'booked'} onClose={() => setModal(null)} onDone={() => (setModal(null), done(lead.id), onLogged('booked'))} />
     </>
   )
 }

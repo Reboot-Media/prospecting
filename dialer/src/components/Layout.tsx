@@ -6,12 +6,25 @@ import { NAV, sectionOf, type Route } from '../lib/router'
 import { digits, fullName } from '../lib/format'
 
 export interface Badges {
+  calls: number
   tasks: number
   inbox: number
   approvals: number
 }
 
-export function Layout({ route, go, openContact, children, badges }: { route: Route; go(r: Route, id?: string): void; openContact(id: string): void; children: ReactNode; badges: Badges }) {
+export function Layout({
+  route,
+  go,
+  openContact,
+  children,
+  badges,
+}: {
+  route: Route
+  go(r: Route, id?: string): void
+  openContact(id: string): void
+  children: ReactNode
+  badges: Badges
+}) {
   const { me, data, signOut } = useData()
   const [open, setOpen] = useState(false)
   const [palette, setPalette] = useState(false)
@@ -28,12 +41,14 @@ export function Layout({ route, go, openContact, children, badges }: { route: Ro
   }, [])
 
   const badgeFor = (k: Route, active: boolean): ReactNode => {
-    const n = k === 'tasks' ? badges.tasks : k === 'inbox' ? badges.inbox : k === 'approvals' ? badges.approvals : 0
+    const n = k === 'tasks' ? badges.tasks : k === 'calls' ? badges.calls : k === 'inbox' ? badges.inbox : k === 'approvals' ? badges.approvals : 0
     if (k === 'contacts') return <span className={`tabular text-[11px] ${active ? 'text-white/60' : 'text-ink-400'}`}>{data.leads.length}</span>
     if (!n) return null
     const warm = k === 'tasks'
     return (
-      <span className={`tabular rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/90 text-ink-900' : warm ? 'bg-sand-50 text-sand-700 ring-1 ring-inset ring-sand-400/40' : 'bg-accent-50 text-accent-700 ring-1 ring-inset ring-accent-400/30'}`}>
+      <span
+        className={`tabular rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/90 text-ink-900' : warm ? 'bg-sand-50 text-sand-700 ring-1 ring-inset ring-sand-400/40' : 'bg-accent-50 text-accent-700 ring-1 ring-inset ring-accent-400/30'}`}
+      >
         {n}
       </span>
     )
@@ -120,7 +135,10 @@ export function Layout({ route, go, openContact, children, badges }: { route: Ro
               <span className="truncate font-medium text-ink-900">{label}</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <button onClick={() => setPalette(true)} className="hidden h-8 w-56 items-center gap-2 rounded-lg border border-line bg-wash px-2.5 text-xs text-ink-400 hover:text-ink-700 md:flex">
+              <button
+                onClick={() => setPalette(true)}
+                className="hidden h-8 w-56 items-center gap-2 rounded-lg border border-line bg-wash px-2.5 text-xs text-ink-400 hover:text-ink-700 md:flex"
+              >
                 <Icon name="search" className="h-3.5 w-3.5" />
                 <span className="flex-1 text-left">Find a roofer…</span>
                 <Kbd>⌘K</Kbd>
@@ -155,12 +173,20 @@ function Palette({ close, go, openContact }: { close(): void; go(r: Route): void
     const d = digits(s)
     const people = !s
       ? []
-      : data.leads
-          .filter((l) => `${l.company} ${fullName(l)} ${l.city} ${l.email}`.toLowerCase().includes(s) || (d.length >= 3 && digits(l.phone).includes(d)))
-          .slice(0, 8)
+      : data.leads.filter((l) => `${l.company} ${fullName(l)} ${l.city} ${l.email}`.toLowerCase().includes(s) || (d.length >= 3 && digits(l.phone).includes(d))).slice(0, 8)
     return [
-      ...people.map((l) => ({ key: l.id, label: l.company, sub: `${fullName(l)} · ${l.city}`, run: () => openContact(l.id) })),
-      ...pages.slice(0, s ? 5 : 18).map((p) => ({ key: p.key, label: p.label, sub: 'Go to page', run: () => go(p.key) })),
+      ...people.map((l) => ({
+        key: l.id,
+        label: l.company,
+        sub: `${fullName(l)} · ${l.city}`,
+        run: () => openContact(l.id),
+      })),
+      ...pages.slice(0, s ? 5 : 18).map((p) => ({
+        key: p.key,
+        label: p.label,
+        sub: 'Go to page',
+        run: () => go(p.key),
+      })),
     ]
   }, [q, data.leads, go, openContact])
 
@@ -173,7 +199,12 @@ function Palette({ close, go, openContact }: { close(): void; go(r: Route): void
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink-900/25 p-4 pt-[12vh]" onMouseDown={close}>
-      <div role="dialog" aria-label="Search" className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-panel ring-1 ring-black/5" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-label="Search"
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-panel ring-1 ring-black/5"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-2 border-b border-line px-4">
           <Icon name="search" className="text-ink-400" />
           <input

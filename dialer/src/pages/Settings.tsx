@@ -43,7 +43,9 @@ export function Settings() {
       <PageHeader title="Settings" />
       <Card className="p-5">
         <h2 className="text-sm font-semibold text-ink-900">Callback alerts</h2>
-        <p className="mt-1 text-sm text-ink-500">When one of your callbacks comes due, this tab beeps and shows a desktop notification. Keep the app pinned in a tab while you dial.</p>
+        <p className="mt-1 text-sm text-ink-500">
+          When one of your callbacks comes due, this tab beeps and shows a desktop notification. Keep the app pinned in a tab while you dial.
+        </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {perm === 'granted' ? (
             <span className="rounded-full bg-sage-50 px-2.5 py-1 text-xs font-medium text-sage-700 ring-1 ring-inset ring-sage-400/30">Notifications on</span>
@@ -78,6 +80,40 @@ export function Settings() {
       </Card>
 
       <Card className="space-y-4 p-5">
+        <h2 className="text-sm font-semibold text-ink-900">Phone</h2>
+        <Field
+          label="Place calls from"
+          hint="Your phone: the CRM opens the dialer, times the call and logs it. Browser: calls go through the phone carrier with recording (needs the carrier connected and your line added under Phone numbers)."
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ['cell', 'My phone'],
+                ['browser', 'Browser (recorded)'],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setS({ ...s, call_via: k })}
+                className={`h-10 rounded-lg text-sm font-medium ring-1 ring-inset ${s.call_via === k ? 'bg-ink-900 text-white ring-ink-900' : 'bg-white text-ink-700 ring-line hover:bg-wash'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={s.record_calls} onChange={(e) => setS({ ...s, record_calls: e.target.checked })} /> Record browser calls
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={s.missed_call_task} onChange={(e) => setS({ ...s, missed_call_task: e.target.checked })} /> Turn every missed inbound call into a callback
+          task
+        </label>
+        {saveBar}
+      </Card>
+
+      <Card className="space-y-4 p-5">
         <h2 className="text-sm font-semibold text-ink-900">Email sending</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Send from">
@@ -99,7 +135,9 @@ export function Settings() {
       {backend.mode === 'demo' && (
         <Card className="p-5">
           <h2 className="text-sm font-semibold text-ink-900">Demo mode</h2>
-          <p className="mt-1 text-sm text-ink-500">Data lives only in this browser. Open a second window to see how two callers stay in sync. Reset brings back the sample roofers.</p>
+          <p className="mt-1 text-sm text-ink-500">
+            Data lives only in this browser. Open a second window to see how two callers stay in sync. Reset brings back the sample roofers.
+          </p>
           <Button
             variant="danger"
             className="mt-3"

@@ -8,7 +8,8 @@ const ICONS = {
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-13v4l3 2',
   users: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8',
   upload: 'M12 15V3m0 0L7 8m5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
-  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14.3 3h-4l-.4 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.6l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3l.4 2.4h4l.4-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.3z',
+  settings:
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm7.4-3a7.4 7.4 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14.3 3h-4l-.4 2.4a7 7 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.6l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3l.4 2.4h4l.4-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.3z',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.35-4.35',
   x: 'M18 6 6 18M6 6l12 12',
   check: 'M20 6 9 17l-5-5',
@@ -46,6 +47,8 @@ const ICONS = {
   bolt: 'M13 2 3 14h9l-1 8 10-12h-9z',
   globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18',
   dollar: 'M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  calls: 'M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2m10-1v5h5m-5 0 6-6',
+  hash: 'M5 9h14M4 15h14M10 3 8 21M16 3l-2 18',
   sliders: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
 } as const
 
@@ -81,7 +84,10 @@ export function PainBadge({ pain }: { pain: Pain }) {
   )
 }
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent'; size?: 'sm' | 'md' }
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent'
+  size?: 'sm' | 'md'
+}
 
 export function Button({ variant = 'secondary', size = 'md', className = '', ...p }: BtnProps) {
   const v = {
@@ -112,7 +118,17 @@ export function CardHead({ title, sub, actions }: { title: ReactNode; sub?: Reac
 }
 
 // A row of numbers that share one card, split by hairlines (like the inspiration's stat strips).
-export function StatStrip({ items }: { items: { label: string; value: ReactNode; sub?: ReactNode; icon?: IconName; delta?: { text: string; good: boolean } }[] }) {
+export function StatStrip({
+  items,
+}: {
+  items: {
+    label: string
+    value: ReactNode
+    sub?: ReactNode
+    icon?: IconName
+    delta?: { text: string; good: boolean }
+  }[]
+}) {
   return (
     <Card className="grid grid-cols-2 divide-line overflow-hidden md:grid-cols-4 md:divide-x [&>*:nth-child(n+3)]:border-t [&>*:nth-child(n+3)]:border-line md:[&>*:nth-child(n+3)]:border-t-0 [&>*:nth-child(even)]:border-l [&>*:nth-child(even)]:border-line md:[&>*:nth-child(even)]:border-l-0">
       {items.map((s) => (
@@ -121,7 +137,9 @@ export function StatStrip({ items }: { items: { label: string; value: ReactNode;
             {s.icon && <Icon name={s.icon} className="h-3.5 w-3.5 text-ink-400" />}
             {s.label}
             {s.delta && (
-              <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${s.delta.good ? 'bg-sage-50 text-sage-700' : 'bg-clay-50 text-clay-700'}`}>{s.delta.text}</span>
+              <span className={`ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${s.delta.good ? 'bg-sage-50 text-sage-700' : 'bg-clay-50 text-clay-700'}`}>
+                {s.delta.text}
+              </span>
             )}
           </div>
           <div className="tabular mt-2 text-[26px] font-semibold leading-none tracking-tight text-ink-900">{s.value}</div>
@@ -204,7 +222,19 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 export const inputCls =
   'w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:border-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-100'
 
-export function Select({ value, onChange, options, className = '', label }: { value: string; onChange(v: string): void; options: [string, string][]; className?: string; label?: string }) {
+export function Select({
+  value,
+  onChange,
+  options,
+  className = '',
+  label,
+}: {
+  value: string
+  onChange(v: string): void
+  options: [string, string][]
+  className?: string
+  label?: string
+}) {
   return (
     <select
       aria-label={label}
@@ -225,7 +255,12 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
   return (
     <div className={`relative ${className}`}>
       <Icon name="search" className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-ink-400" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="h-8 w-full rounded-lg border border-line bg-white pl-8 pr-3 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-100" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-8 w-full rounded-lg border border-line bg-white pl-8 pr-3 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-100"
+      />
     </div>
   )
 }
@@ -259,7 +294,12 @@ export function Kbd({ children }: { children: ReactNode }) {
 // Thin progress bar.
 export function Meter({ value, max, tone = 'accent' }: { value: number; max: number; tone?: 'accent' | 'sage' | 'sand' | 'clay' }) {
   const pct = Math.max(0, Math.min(100, max ? (value / max) * 100 : 0))
-  const c = { accent: 'bg-accent-500', sage: 'bg-sage-400', sand: 'bg-sand-400', clay: 'bg-clay-400' }[tone]
+  const c = {
+    accent: 'bg-accent-500',
+    sage: 'bg-sage-400',
+    sand: 'bg-sand-400',
+    clay: 'bg-clay-400',
+  }[tone]
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-wash ring-1 ring-inset ring-line">
       <div className={`h-full rounded-full ${c}`} style={{ width: `${pct}%` }} />
@@ -301,7 +341,10 @@ export function Logo({ className = 'h-7 w-7' }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden>
       <rect width="32" height="32" rx="8" fill="#1c1b19" />
-      <path d="M11 9.5c.6-.6 1.6-.6 2.2 0l2 2c.6.6.6 1.6 0 2.2l-1 1a9 9 0 0 0 3.1 3.1l1-1c.6-.6 1.6-.6 2.2 0l2 2c.6.6.6 1.6 0 2.2l-1.2 1.2c-1 1-2.5 1.2-3.7.6A16 16 0 0 1 9.4 15c-.6-1.2-.4-2.7.6-3.7z" fill="#fafaf8" />
+      <path
+        d="M11 9.5c.6-.6 1.6-.6 2.2 0l2 2c.6.6.6 1.6 0 2.2l-1 1a9 9 0 0 0 3.1 3.1l1-1c.6-.6 1.6-.6 2.2 0l2 2c.6.6.6 1.6 0 2.2l-1.2 1.2c-1 1-2.5 1.2-3.7.6A16 16 0 0 1 9.4 15c-.6-1.2-.4-2.7.6-3.7z"
+        fill="#fafaf8"
+      />
     </svg>
   )
 }

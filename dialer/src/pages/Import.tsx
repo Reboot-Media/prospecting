@@ -23,7 +23,16 @@ export function Import({ done }: { done(): void }) {
   const result = useMemo(() => {
     if (!table.length) return null
     const existing = new Set(data.leads.flatMap((l) => [l.phone, l.email.toLowerCase()].filter(Boolean)))
-    const r = buildLeads(table, map, { onlyTag, skipTags: skip.split(','), owner: owner === 'split' || owner === 'none' ? null : owner }, existing)
+    const r = buildLeads(
+      table,
+      map,
+      {
+        onlyTag,
+        skipTags: skip.split(','),
+        owner: owner === 'split' || owner === 'none' ? null : owner,
+      },
+      existing,
+    )
     if (owner === 'split') r.rows.forEach((l, i) => (l.owner = callers[i % callers.length]))
     return r
   }, [table, map, onlyTag, skip, owner, data.leads, callers.join('|')])
@@ -68,7 +77,12 @@ export function Import({ done }: { done(): void }) {
                 <Field key={f} label={FIELD_LABEL[f]}>
                   <Select
                     value={map[f] === undefined ? '' : String(map[f])}
-                    onChange={(v) => setMap((m) => ({ ...m, [f]: v === '' ? undefined : Number(v) }))}
+                    onChange={(v) =>
+                      setMap((m) => ({
+                        ...m,
+                        [f]: v === '' ? undefined : Number(v),
+                      }))
+                    }
                     options={[['', '—'], ...headers.map((h, i) => [String(i), h] as [string, string])]}
                     className="w-full"
                   />

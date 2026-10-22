@@ -7,20 +7,7 @@ export type Stage = 'booked' | 'confirmed' | 'showed' | 'no_show' | 'proposal' |
 export type Pain = 'never-ads' | 'ads-stopped' | 'ads-running' | 'unknown'
 export type Segment = 'growing' | 'shark' | 'commercial'
 
-export type Outcome =
-  | 'no_answer'
-  | 'voicemail'
-  | 'gatekeeper'
-  | 'callback'
-  | 'booked'
-  | 'confirmed'
-  | 'not_interested'
-  | 'bad_number'
-  | 'dnc'
-  | 'note'
-  | 'stage'
-  | 'email'
-  | 'form'
+export type Outcome = 'no_answer' | 'voicemail' | 'gatekeeper' | 'callback' | 'booked' | 'confirmed' | 'not_interested' | 'bad_number' | 'dnc' | 'note' | 'stage' | 'email' | 'form'
 
 export interface Lead {
   id: string
@@ -199,6 +186,46 @@ export interface Settings {
   sender: string
   bounce_pause_pct: number
   booking_link: string
+  call_via: 'cell' | 'browser'
+  record_calls: boolean
+  missed_call_task: boolean
 }
 
 export type NewLead = Partial<Lead> & { company: string; phone: string }
+
+// Phone numbers the CRM owns at the carrier. "line" numbers are what K and Ali
+// dial out from; "tracking" numbers sit on an ad, page or listing and forward
+// to a cell, so every inbound call is tied to where it came from.
+export interface PhoneNumber {
+  id: string
+  number: string
+  label: string
+  kind: 'line' | 'tracking'
+  source: string
+  owner: string | null
+  forward_to: string
+  record: boolean
+  active: boolean
+  created_at: string
+}
+
+export type CallStatus = 'live' | 'completed' | 'no_answer' | 'busy' | 'voicemail' | 'missed' | 'failed'
+
+export interface Call {
+  id: string
+  lead_id: string | null
+  direction: 'out' | 'in'
+  user_name: string
+  from_number: string
+  to_number: string
+  number_id: string | null
+  source: string
+  status: CallStatus
+  started_at: string
+  duration_sec: number
+  recording_url: string
+  outcome: Outcome | null
+  via: 'browser' | 'cell' | 'forward'
+  provider_id: string | null
+  created_at: string
+}

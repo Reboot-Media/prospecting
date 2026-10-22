@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Empty, Icon, PageHeader, PainBadge, Select } from '../components/ui'
 import { OutcomeBar } from '../components/OutcomeBar'
+import { useCall } from '../components/CallBar'
 import { EmailPulse, LeadHeader, LeadTimeline } from '../components/LeadPanel'
 import { DIALABLE, OUTCOME_LABEL, PAIN_LABEL } from '../lib/constants'
 import { ago, prettyPhone } from '../lib/format'
@@ -11,6 +12,7 @@ const COOLDOWN_MS = 2 * 3600e3 // don't redial the same number within 2 hours
 
 export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): void }) {
   const { me, data, leadById } = useData()
+  const { call } = useCall()
   const [queue, setQueue] = useState('dialable')
   const [pain, setPain] = useState('all')
   const [who, setWho] = useState('mine')
@@ -20,7 +22,11 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
 
   const dueIds = useMemo(() => {
     const now = new Date().toISOString()
-    return new Map(data.tasks.filter((c) => c.lead_id && c.kind === 'callback' && !c.done_at && c.due_at <= now && (who === 'all' || c.owner === me.name)).map((c) => [c.lead_id as string, c.due_at]))
+    return new Map(
+      data.tasks
+        .filter((c) => c.lead_id && c.kind === 'callback' && !c.done_at && c.due_at <= now && (who === 'all' || c.owner === me.name))
+        .map((c) => [c.lead_id as string, c.due_at]),
+    )
   }, [data.tasks, who, me.name])
 
   const list = useMemo(() => {
@@ -76,7 +82,7 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
       const t = e.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || document.querySelector('[role=dialog]')) return
       if (e.key === 's' || e.key === 'ArrowRight') skip()
-      if (e.key === 'c' && current) window.location.href = `tel:${current.phone}`
+      if (e.key === 'c' && current) call(current)
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
@@ -131,7 +137,9 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
               )}
               <LeadHeader lead={current} big />
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-500">
-                <span>{current.attempts} attempt{current.attempts === 1 ? '' : 's'}</span>
+                <span>
+                  {current.attempts} attempt{current.attempts === 1 ? '' : 's'}
+                </span>
                 <span>Last touch {ago(current.last_called_at)}</span>
                 {current.last_outcome && <span>Last result: {OUTCOME_LABEL[current.last_outcome]}</span>}
               </div>

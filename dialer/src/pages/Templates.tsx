@@ -4,7 +4,11 @@ import { ago, uid } from '../lib/format'
 import { useData } from '../lib/store'
 import type { Template } from '../lib/types'
 
-const KIND: Record<Template['kind'], string> = { plain: 'Plain email', branded: 'Branded email', text: 'Text message' }
+const KIND: Record<Template['kind'], string> = {
+  plain: 'Plain email',
+  branded: 'Branded email',
+  text: 'Text message',
+}
 
 export function Templates() {
   const { data, save, remove } = useData()
@@ -27,7 +31,14 @@ export function Templates() {
           <Button
             variant="primary"
             onClick={() => {
-              const t: Template = { id: uid(), name: 'New template', kind: 'branded', subject: '', body: 'Hi {first},\n\n\n\nKendall', created_at: new Date().toISOString() }
+              const t: Template = {
+                id: uid(),
+                name: 'New template',
+                kind: 'branded',
+                subject: '',
+                body: 'Hi {first},\n\n\n\nKendall',
+                created_at: new Date().toISOString(),
+              }
               save('templates', t).then(() => pick(t))
             }}
           >
@@ -56,7 +67,12 @@ export function Templates() {
                 <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
               </Field>
               <Field label="Kind">
-                <Select value={draft.kind} onChange={(v) => setDraft({ ...draft, kind: v as Template['kind'] })} options={Object.entries(KIND) as [string, string][]} className="h-9 w-full" />
+                <Select
+                  value={draft.kind}
+                  onChange={(v) => setDraft({ ...draft, kind: v as Template['kind'] })}
+                  options={Object.entries(KIND) as [string, string][]}
+                  className="h-9 w-full"
+                />
               </Field>
             </div>
             {draft.kind !== 'text' && (

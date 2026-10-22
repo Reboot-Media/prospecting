@@ -43,7 +43,13 @@ export function Calendar({ openContact }: { openContact(id: string): void }) {
     const d = new Date(m.starts_at)
     const top = (d.getHours() + d.getMinutes() / 60 - START) * ROW
     const l = leadById.get(m.lead_id)
-    const tone = { scheduled: 'bg-sand-50 ring-sand-400/40', confirmed: 'bg-sage-50 ring-sage-400/40', showed: 'bg-accent-50 ring-accent-400/30', no_show: 'bg-clay-50 ring-clay-400/40', canceled: 'bg-wash ring-line' }[m.status]
+    const tone = {
+      scheduled: 'bg-sand-50 ring-sand-400/40',
+      confirmed: 'bg-sage-50 ring-sage-400/40',
+      showed: 'bg-accent-50 ring-accent-400/30',
+      no_show: 'bg-clay-50 ring-clay-400/40',
+      canceled: 'bg-wash ring-line',
+    }[m.status]
     return (
       <button
         key={m.id}
@@ -53,7 +59,11 @@ export function Calendar({ openContact }: { openContact(id: string): void }) {
       >
         <div className="truncate text-[11px] font-semibold text-ink-900">{l?.company}</div>
         <div className="truncate text-[10px] text-ink-500">
-          {d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} · {m.owner}
+          {d.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}{' '}
+          · {m.owner}
         </div>
       </button>
     )
@@ -99,7 +109,10 @@ export function Calendar({ openContact }: { openContact(id: string): void }) {
               <div className="grid min-w-[640px] grid-cols-[48px_repeat(5,1fr)]">
                 <div />
                 {days.map((d) => (
-                  <div key={d.toISOString()} className={`border-b border-l border-line px-2 py-2 text-center text-xs ${isSameDay(d, new Date()) ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>
+                  <div
+                    key={d.toISOString()}
+                    className={`border-b border-l border-line px-2 py-2 text-center text-xs ${isSameDay(d, new Date()) ? 'font-semibold text-ink-900' : 'text-ink-500'}`}
+                  >
                     {d.toLocaleDateString(undefined, { weekday: 'short' })} {d.getDate()}
                   </div>
                 ))}
@@ -117,7 +130,12 @@ export function Calendar({ openContact }: { openContact(id: string): void }) {
                     ))}
                     {inWeek.filter((m) => isSameDay(new Date(m.starts_at), d)).map(block)}
                     {isSameDay(d, new Date()) && new Date().getHours() >= START && new Date().getHours() < END && (
-                      <div className="absolute inset-x-0 z-10 h-px bg-clay-400" style={{ top: (new Date().getHours() + new Date().getMinutes() / 60 - START) * ROW }} />
+                      <div
+                        className="absolute inset-x-0 z-10 h-px bg-clay-400"
+                        style={{
+                          top: (new Date().getHours() + new Date().getMinutes() / 60 - START) * ROW,
+                        }}
+                      />
                     )}
                   </div>
                 ))}

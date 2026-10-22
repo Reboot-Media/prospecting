@@ -6,7 +6,14 @@ import { matchesList } from '../lib/metrics'
 import { useData } from '../lib/store'
 import type { ListFilter, Pain, Segment, SmartList, Status } from '../lib/types'
 
-const blank: ListFilter = { tags_any: [], tags_none: [], pain: [], segment: [], status: [], has_email: false }
+const blank: ListFilter = {
+  tags_any: [],
+  tags_none: [],
+  pain: [],
+  segment: [],
+  status: [],
+  has_email: false,
+}
 
 function describe(f: ListFilter) {
   const parts: string[] = []
@@ -28,7 +35,17 @@ export function Lists({ openContact }: { openContact(id: string): void }) {
         title="Lists"
         sub="Smart lists update themselves from tags, pain, segment and status. Use them for dialing, sequences and campaigns."
         actions={
-          <Button variant="primary" onClick={() => setEdit({ id: uid(), name: '', filter: blank, created_at: new Date().toISOString() })}>
+          <Button
+            variant="primary"
+            onClick={() =>
+              setEdit({
+                id: uid(),
+                name: '',
+                filter: blank,
+                created_at: new Date().toISOString(),
+              })
+            }
+          >
             <Icon name="plus" /> New list
           </Button>
         }
@@ -97,7 +114,11 @@ function ListEditor({ value, close, onSave, onDelete }: { value: SmartList; clos
       .split(',')
       .map((x) => x.trim().toLowerCase())
       .filter(Boolean)
-  const f: ListFilter = { ...l.filter, tags_any: split(any), tags_none: split(none) }
+  const f: ListFilter = {
+    ...l.filter,
+    tags_any: split(any),
+    tags_none: split(none),
+  }
   const n = data.leads.filter((x) => matchesList(x, f)).length
   const exists = data.lists.some((x) => x.id === value.id)
   return (
@@ -124,7 +145,17 @@ function ListEditor({ value, close, onSave, onDelete }: { value: SmartList; clos
           <Chips all={STATUS_LABEL} value={l.filter.status} onChange={(v: Status[]) => setL({ ...l, filter: { ...l.filter, status: v } })} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-ink-700">
-          <input type="checkbox" checked={l.filter.has_email} onChange={(e) => setL({ ...l, filter: { ...l.filter, has_email: e.target.checked } })} /> Only roofers with a good email
+          <input
+            type="checkbox"
+            checked={l.filter.has_email}
+            onChange={(e) =>
+              setL({
+                ...l,
+                filter: { ...l.filter, has_email: e.target.checked },
+              })
+            }
+          />{' '}
+          Only roofers with a good email
         </label>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
           <span className="text-sm text-ink-500">

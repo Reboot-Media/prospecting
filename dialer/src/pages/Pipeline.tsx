@@ -38,10 +38,30 @@ export function Pipeline({ openContact }: { openContact(id: string): void }) {
       <div className="mb-5">
         <StatStrip
           items={[
-            { label: 'Open pipeline', icon: 'dollar', value: money(open.reduce((a, l) => a + (l.deal_value || 0), 0)), sub: `${open.length} open deals` },
-            { label: 'Waiting on YES', icon: 'message', value: deals.filter((l) => l.stage === 'booked').length, sub: 'Booked, not confirmed' },
-            { label: 'Signed', icon: 'check', value: won.length, sub: money(won.reduce((a, l) => a + (l.deal_value || 0), 0)) + ' first 90 days' },
-            { label: 'Close rate', icon: 'chart', value: closed ? `${Math.round((won.length / closed) * 100)}%` : '–', sub: `${closed} decided` },
+            {
+              label: 'Open pipeline',
+              icon: 'dollar',
+              value: money(open.reduce((a, l) => a + (l.deal_value || 0), 0)),
+              sub: `${open.length} open deals`,
+            },
+            {
+              label: 'Waiting on YES',
+              icon: 'message',
+              value: deals.filter((l) => l.stage === 'booked').length,
+              sub: 'Booked, not confirmed',
+            },
+            {
+              label: 'Signed',
+              icon: 'check',
+              value: won.length,
+              sub: money(won.reduce((a, l) => a + (l.deal_value || 0), 0)) + ' first 90 days',
+            },
+            {
+              label: 'Close rate',
+              icon: 'chart',
+              value: closed ? `${Math.round((won.length / closed) * 100)}%` : '–',
+              sub: `${closed} decided`,
+            },
           ]}
         />
       </div>

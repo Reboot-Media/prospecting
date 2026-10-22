@@ -4,6 +4,7 @@ import { MEETING_LABEL, MEETING_TONE, OUTCOME_LABEL } from '../lib/constants'
 import { ago, startOfToday, when } from '../lib/format'
 import { CONVO_OUTCOMES, isDial, perDay } from '../lib/metrics'
 import { useData } from '../lib/store'
+import { calledBackAfter } from './Calls'
 import type { Route } from '../lib/router'
 
 export function Home({ go, openContact, callNow }: { go(r: Route): void; openContact(id: string): void; callNow(id: string): void }) {
@@ -48,7 +49,10 @@ export function Home({ go, openContact, callNow }: { go(r: Route): void; openCon
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
   }, [data.emails, leadById])
-  const upcoming = data.meetings.filter((m) => m.starts_at >= nowIso && m.status !== 'canceled').sort((a, b) => a.starts_at.localeCompare(b.starts_at)).slice(0, 5)
+  const upcoming = data.meetings
+    .filter((m) => m.starts_at >= nowIso && m.status !== 'canceled')
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .slice(0, 5)
   const goal = data.settings.daily_dial_goal
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -56,13 +60,68 @@ export function Home({ go, openContact, callNow }: { go(r: Route): void; openCon
 
   const team = data.settings.callers.map((c) => {
     const a = data.activities.filter((x) => x.user_name === c && x.created_at >= today)
-    return { name: c, dials: a.filter(isDial).length, convos: a.filter((x) => CONVO_OUTCOMES.has(x.outcome)).length, booked: a.filter((x) => x.outcome === 'booked').length }
+    return {
+      name: c,
+      dials: a.filter(isDial).length,
+      convos: a.filter((x) => CONVO_OUTCOMES.has(x.outcome)).length,
+      booked: a.filter((x) => x.outcome === 'booked').length,
+    }
   })
 
-  const need: { icon: IconName; title: string; sub: string; tone: 'sand' | 'violet' | 'sage' | 'mist'; onClick(): void }[] = [
-    ...(due.length ? [{ icon: 'bell' as const, title: `${due.length} callback${due.length === 1 ? '' : 's'} today`, sub: due[0] ? `Next: ${leadById.get(due[0].lead_id || '')?.company || due[0].reason} · ${when(due[0].due_at)}` : '', tone: 'sand' as const, onClick: () => go('tasks') }] : []),
-    ...(drafts ? [{ icon: 'approve' as const, title: `${drafts} email${drafts === 1 ? '' : 's'} to approve`, sub: 'Nothing sends until you approve', tone: 'violet' as const, onClick: () => go('approvals') }] : []),
-    ...(replies.length ? [{ icon: 'reply' as const, title: `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'} this week`, sub: `Latest from ${leadById.get(replies[replies.length - 1].lead_id)?.company || 'a roofer'}`, tone: 'sage' as const, onClick: () => go('inbox') }] : []),
+  const missed = data.calls
+    .filter((c) => c.status === 'missed' && c.started_at >= weekAgo && !calledBackAfter(c, data.calls))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at))
+  const need: {
+    icon: IconName
+    title: string
+    sub: string
+    tone: 'sand' | 'violet' | 'sage' | 'mist' | 'clay'
+    onClick(): void
+  }[] = [
+    ...(missed.length
+      ? [
+          {
+            icon: 'calls' as const,
+            title: `${missed.length} missed call${missed.length === 1 ? '' : 's'} to return`,
+            sub: `Latest: ${(missed[0].lead_id && leadById.get(missed[0].lead_id)?.company) || 'unknown caller'} via ${missed[0].source} · ${when(missed[0].started_at)}`,
+            tone: 'clay' as const,
+            onClick: () => go('calls'),
+          },
+        ]
+      : []),
+    ...(due.length
+      ? [
+          {
+            icon: 'bell' as const,
+            title: `${due.length} callback${due.length === 1 ? '' : 's'} today`,
+            sub: due[0] ? `Next: ${leadById.get(due[0].lead_id || '')?.company || due[0].reason} · ${when(due[0].due_at)}` : '',
+            tone: 'sand' as const,
+            onClick: () => go('tasks'),
+          },
+        ]
+      : []),
+    ...(drafts
+      ? [
+          {
+            icon: 'approve' as const,
+            title: `${drafts} email${drafts === 1 ? '' : 's'} to approve`,
+            sub: 'Nothing sends until you approve',
+            tone: 'violet' as const,
+            onClick: () => go('approvals'),
+          },
+        ]
+      : []),
+    ...(replies.length
+      ? [
+          {
+            icon: 'reply' as const,
+            title: `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'} this week`,
+            sub: `Latest from ${leadById.get(replies[replies.length - 1].lead_id)?.company || 'a roofer'}`,
+            tone: 'sage' as const,
+            onClick: () => go('inbox'),
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -89,10 +148,42 @@ export function Home({ go, openContact, callNow }: { go(r: Route): void; openCon
 
       <StatStrip
         items={[
-          { label: 'Team dials today', icon: 'phone', value: s.dialsTeam, sub: `${s.dialsYest} yesterday`, delta: s.dialsYest ? { text: `${s.dialsTeam >= s.dialsYest ? '↑' : '↓'} ${Math.abs(Math.round(((s.dialsTeam - s.dialsYest) / s.dialsYest) * 100))}%`, good: s.dialsTeam >= s.dialsYest } : undefined },
-          { label: 'Conversations', icon: 'message', value: s.convos, sub: 'Owner on the line today' },
-          { label: 'Booked this week', icon: 'calendar', value: s.booked, sub: 'Meetings set in 7 days' },
-          { label: 'Show rate', icon: 'check', value: s.judged ? `${s.showRate}%` : '–', sub: `Last 30 days · ${s.judged} meetings`, delta: s.judged ? { text: s.showRate >= 50 ? 'on track' : 'below 50%', good: s.showRate >= 50 } : undefined },
+          {
+            label: 'Team dials today',
+            icon: 'phone',
+            value: s.dialsTeam,
+            sub: `${s.dialsYest} yesterday`,
+            delta: s.dialsYest
+              ? {
+                  text: `${s.dialsTeam >= s.dialsYest ? '↑' : '↓'} ${Math.abs(Math.round(((s.dialsTeam - s.dialsYest) / s.dialsYest) * 100))}%`,
+                  good: s.dialsTeam >= s.dialsYest,
+                }
+              : undefined,
+          },
+          {
+            label: 'Conversations',
+            icon: 'message',
+            value: s.convos,
+            sub: 'Owner on the line today',
+          },
+          {
+            label: 'Booked this week',
+            icon: 'calendar',
+            value: s.booked,
+            sub: 'Meetings set in 7 days',
+          },
+          {
+            label: 'Show rate',
+            icon: 'check',
+            value: s.judged ? `${s.showRate}%` : '–',
+            sub: `Last 30 days · ${s.judged} meetings`,
+            delta: s.judged
+              ? {
+                  text: s.showRate >= 50 ? 'on track' : 'below 50%',
+                  good: s.showRate >= 50,
+                }
+              : undefined,
+          },
         ]}
       />
 
@@ -123,7 +214,9 @@ export function Home({ go, openContact, callNow }: { go(r: Route): void; openCon
             {need.length === 0 && <div className="px-1 pb-2 text-sm text-ink-500">Nothing waiting. Go dial.</div>}
             {need.map((n) => (
               <button key={n.title} onClick={n.onClick} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-wash">
-                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1 ring-inset ${n.tone === 'sand' ? 'bg-sand-50 text-sand-700 ring-sand-400/30' : n.tone === 'violet' ? 'bg-accent-50 text-accent-700 ring-accent-400/30' : 'bg-sage-50 text-sage-700 ring-sage-400/30'}`}>
+                <span
+                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1 ring-inset ${n.tone === 'sand' ? 'bg-sand-50 text-sand-700 ring-sand-400/30' : n.tone === 'clay' ? 'bg-clay-50 text-clay-700 ring-clay-400/30' : n.tone === 'violet' ? 'bg-accent-50 text-accent-700 ring-accent-400/30' : 'bg-sage-50 text-sage-700 ring-sage-400/30'}`}
+                >
                   <Icon name={n.icon} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -154,7 +247,14 @@ export function Home({ go, openContact, callNow }: { go(r: Route): void; openCon
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHead title="Upcoming meetings" actions={<button onClick={() => go('calendar')} className="text-xs text-ink-500 hover:text-ink-900">Calendar →</button>} />
+          <CardHead
+            title="Upcoming meetings"
+            actions={
+              <button onClick={() => go('calendar')} className="text-xs text-ink-500 hover:text-ink-900">
+                Calendar →
+              </button>
+            }
+          />
           {upcoming.length === 0 ? (
             <div className="px-4 pb-4 text-sm text-ink-500">No meetings booked yet.</div>
           ) : (

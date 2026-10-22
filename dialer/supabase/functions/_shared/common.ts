@@ -1,8 +1,7 @@
 // Shared helpers for the CRM edge functions (Deno).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 
-export const db = () =>
-  createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+export const db = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
 // Secrets: function env first, then the database vault (crm_cron_secret,
 // crm_form_secret), which only the service role can read. Empty means locked.
@@ -37,7 +36,10 @@ export async function settings(sb: ReturnType<typeof db>) {
 }
 
 export function fill(s: string, l: { first_name: string; company: string; city: string }) {
-  return s.replaceAll('{first}', l.first_name || 'there').replaceAll('{company}', l.company).replaceAll('{city}', l.city)
+  return s
+    .replaceAll('{first}', l.first_name || 'there')
+    .replaceAll('{company}', l.company)
+    .replaceAll('{city}', l.city)
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -60,7 +62,15 @@ export function brandedHtml(body: string) {
 }
 
 export function chicagoNow() {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hourCycle: 'h23', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    hour: 'numeric',
+    hourCycle: 'h23',
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
   const get = (t: string) => parts.find((p) => p.type === t)?.value || ''
   return { hour: Number(get('hour')), weekday: get('weekday'), date: `${get('year')}-${get('month')}-${get('day')}` }
 }
@@ -70,7 +80,14 @@ export function chicagoMidnightIso() {
   const { date } = chicagoNow()
   for (const off of ['-05:00', '-06:00']) {
     const d = new Date(`${date}T00:00:00${off}`)
-    const back = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).format(d)
+    const back = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(d)
     if (back.startsWith(date) && back.endsWith('00')) return d.toISOString()
   }
   return new Date(`${date}T05:00:00Z`).toISOString()

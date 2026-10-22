@@ -211,6 +211,55 @@ begin
   end loop;
 end $$;
 
+-- Phone: calling lines and tracking numbers, and every call in or out.
+create table if not exists public.crm_numbers (
+  id uuid primary key default gen_random_uuid(),
+  number text not null unique,
+  label text not null default '',
+  kind text not null default 'tracking' check (kind in ('line','tracking')),
+  source text not null default '',
+  owner text not null default '',
+  forward_to text not null default '',
+  record boolean not null default true,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_calls (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid references public.crm_leads(id) on delete set null,
+  direction text not null default 'out' check (direction in ('in','out')),
+  user_name text not null default '',
+  from_number text not null default '',
+  to_number text not null default '',
+  number_id uuid references public.crm_numbers(id) on delete set null,
+  source text not null default '',
+  status text not null default 'live' check (status in ('live','completed','no_answer','busy','voicemail','missed','failed')),
+  started_at timestamptz not null default now(),
+  duration_sec integer not null default 0,
+  recording_url text not null default '',
+  outcome text,
+  via text not null default 'cell' check (via in ('browser','cell','forward')),
+  provider_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists crm_calls_started_idx on public.crm_calls (started_at desc);
+create index if not exists crm_calls_lead_idx on public.crm_calls (lead_id);
+create index if not exists crm_calls_number_idx on public.crm_calls (number_id);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['crm_numbers','crm_calls'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "team full access" on public.%I', t);
+    execute format('create policy "team full access" on public.%I for all to authenticated using (public.crm_is_team()) with check (public.crm_is_team())', t);
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
 -- Function secrets kept in the vault (crm_cron_secret, crm_form_secret). Only the
 -- service role (the edge functions) can read them.
 create or replace function public.crm_secret(n text) returns text

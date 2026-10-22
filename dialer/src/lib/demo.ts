@@ -1,16 +1,105 @@
-import type { Activity, Campaign, Email, EmailEvent, FormSubmission, Lead, Meeting, Outcome, Pain, Segment, Sequence, SmartList, Stage, Status, Task, Template } from './types'
+import type {
+  Activity,
+  Call,
+  Campaign,
+  Email,
+  EmailEvent,
+  FormSubmission,
+  Lead,
+  Meeting,
+  Outcome,
+  Pain,
+  PhoneNumber,
+  Segment,
+  Sequence,
+  SmartList,
+  Stage,
+  Status,
+  Task,
+  Template,
+} from './types'
 
 // Fictional sample data for demo mode only. Phone numbers use the 555-01xx
 // range reserved for fiction and emails use example.com, so nothing is real.
 
-const FIRST = ['Mike', 'Jason', 'Travis', 'Cody', 'Ray', 'Derek', 'Luis', 'Brent', 'Marcus', 'Wade', 'Tony', 'Kyle', 'Shane', 'Hector', 'Dale', 'Rusty', 'Aaron', 'Blake', 'Cole', 'Grant']
-const LAST = ['Hollis', 'Garza', 'Pruitt', 'Whitaker', 'Moreno', 'Kessler', 'Dunlap', 'Arnett', 'Salinas', 'Bowers', 'Crane', 'Teague', 'Villa', 'Hutto', 'Ramsey', 'Odom', 'Pace', 'Lyle']
-const WORD = ['Lone Star', 'Hill Country', 'Bluebonnet', 'Trinity', 'Pecos', 'Brazos', 'Redline', 'Summit', 'Ironclad', 'Cedar Ridge', 'Frontier', 'Keystone', 'Liberty', 'Mesa', 'Caprock', 'Guadalupe', 'Big Sky', 'Sabine', 'Llano', 'Comal']
+const FIRST = [
+  'Mike',
+  'Jason',
+  'Travis',
+  'Cody',
+  'Ray',
+  'Derek',
+  'Luis',
+  'Brent',
+  'Marcus',
+  'Wade',
+  'Tony',
+  'Kyle',
+  'Shane',
+  'Hector',
+  'Dale',
+  'Rusty',
+  'Aaron',
+  'Blake',
+  'Cole',
+  'Grant',
+]
+const LAST = [
+  'Hollis',
+  'Garza',
+  'Pruitt',
+  'Whitaker',
+  'Moreno',
+  'Kessler',
+  'Dunlap',
+  'Arnett',
+  'Salinas',
+  'Bowers',
+  'Crane',
+  'Teague',
+  'Villa',
+  'Hutto',
+  'Ramsey',
+  'Odom',
+  'Pace',
+  'Lyle',
+]
+const WORD = [
+  'Lone Star',
+  'Hill Country',
+  'Bluebonnet',
+  'Trinity',
+  'Pecos',
+  'Brazos',
+  'Redline',
+  'Summit',
+  'Ironclad',
+  'Cedar Ridge',
+  'Frontier',
+  'Keystone',
+  'Liberty',
+  'Mesa',
+  'Caprock',
+  'Guadalupe',
+  'Big Sky',
+  'Sabine',
+  'Llano',
+  'Comal',
+]
 const KIND = ['Roofing', 'Roofing & Exteriors', 'Roof Co.', 'Roofing Group', 'Roofing LLC', 'Roof Pros']
 const CITY: [string, string][] = [
-  ['Austin', 'TX'], ['San Antonio', 'TX'], ['Round Rock', 'TX'], ['New Braunfels', 'TX'], ['Waco', 'TX'],
-  ['Georgetown', 'TX'], ['San Marcos', 'TX'], ['Temple', 'TX'], ['Killeen', 'TX'], ['Pflugerville', 'TX'],
-  ['Fort Worth', 'TX'], ['Plano', 'TX'],
+  ['Austin', 'TX'],
+  ['San Antonio', 'TX'],
+  ['Round Rock', 'TX'],
+  ['New Braunfels', 'TX'],
+  ['Waco', 'TX'],
+  ['Georgetown', 'TX'],
+  ['San Marcos', 'TX'],
+  ['Temple', 'TX'],
+  ['Killeen', 'TX'],
+  ['Pflugerville', 'TX'],
+  ['Fort Worth', 'TX'],
+  ['Plano', 'TX'],
 ]
 const PAINS: Pain[] = ['never-ads', 'never-ads', 'never-ads', 'ads-stopped', 'ads-running']
 
@@ -45,17 +134,40 @@ export function demoData() {
     status: 'active',
     created_at: iso(now - 20 * D),
     steps: [
-      { day: 0, subject: `Quick Question About {company}`, body: `Hi {first},\n\nI searched "roofer {city}" and saw ${hook}.\n\nWorth a quick look at where your next jobs could come from? I can send a free Visibility Check of your area.\n\nKendall Reid\nReboot Media, Austin, Texas`, branded: false },
-      { day: 3, subject: `Your Visibility Check, {first}`, body: `Hi {first},\n\nHere's how {company} stacks up against the top 3 roofers in {city}. Tap here to see it.\n\nKendall`, branded: true },
-      { day: 7, subject: `Jobs That Actually Close`, body: `Hi {first},\n\nShort video on how roofers in {city} are getting signed jobs from homeowners who already want to work with them. Tap here.\n\nKendall`, branded: true },
-      { day: 12, subject: `Closing The Loop`, body: `Hi {first},\n\nShould I close your file? If timing is off, reply "later" and I'll check back after storm season.\n\nKendall`, branded: true },
+      {
+        day: 0,
+        subject: `Quick Question About {company}`,
+        body: `Hi {first},\n\nI searched "roofer {city}" and saw ${hook}.\n\nWorth a quick look at where your next jobs could come from? I can send a free Visibility Check of your area.\n\nKendall Reid\nReboot Media, Austin, Texas`,
+        branded: false,
+      },
+      {
+        day: 3,
+        subject: `Your Visibility Check, {first}`,
+        body: `Hi {first},\n\nHere's how {company} stacks up against the top 3 roofers in {city}. Tap here to see it.\n\nKendall`,
+        branded: true,
+      },
+      {
+        day: 7,
+        subject: `Jobs That Actually Close`,
+        body: `Hi {first},\n\nShort video on how roofers in {city} are getting signed jobs from homeowners who already want to work with them. Tap here.\n\nKendall`,
+        branded: true,
+      },
+      {
+        day: 12,
+        subject: `Closing The Loop`,
+        body: `Hi {first},\n\nShould I close your file? If timing is off, reply "later" and I'll check back after storm season.\n\nKendall`,
+        branded: true,
+      },
     ],
   })
   const sequences: Sequence[] = [
     seq('Never ran ads', 'never-ads', 'you are not in the map top 3 yet'),
     seq('Ads stopped', 'ads-stopped', 'your ads stopped showing this month'),
     seq('Ads running', 'ads-running', 'your ads are live and I was curious how they are going'),
-    { ...seq('Shark: scale per market', 'shark', 'you are already a top roofer in {city}'), status: 'paused' },
+    {
+      ...seq('Shark: scale per market', 'shark', 'you are already a top roofer in {city}'),
+      status: 'paused',
+    },
   ]
   const seqByLane = (p: Pain) => sequences.find((s) => s.lane === p) || sequences[0]
 
@@ -79,7 +191,21 @@ export function demoData() {
     const company = `${WORD[i % WORD.length]} ${KIND[i % KIND.length]}`
     const slug = company.toLowerCase().replace(/[^a-z]+/g, '')
     const lastOutcome: Outcome | null =
-      status === 'new' ? null : status === 'attempting' ? (i % 2 ? 'voicemail' : 'no_answer') : status === 'callback' ? 'callback' : status === 'booked' ? 'booked' : status === 'confirmed' ? 'confirmed' : status === 'bad_number' ? 'bad_number' : 'not_interested'
+      status === 'new'
+        ? null
+        : status === 'attempting'
+          ? i % 2
+            ? 'voicemail'
+            : 'no_answer'
+          : status === 'callback'
+            ? 'callback'
+            : status === 'booked'
+              ? 'booked'
+              : status === 'confirmed'
+                ? 'confirmed'
+                : status === 'bad_number'
+                  ? 'bad_number'
+                  : 'not_interested'
     const inSeq = i % 3 !== 2 && segment === 'growing'
     leads.push({
       id: id(),
@@ -126,6 +252,7 @@ export function demoData() {
       for (let k = 0; k < n; k++) {
         const l = leads[Math.floor(r() * N)]
         const minute = Math.floor((k / n) * 8 * 60)
+        if (at(d, 8, 30) + minute * 60e3 > now - 10 * 60e3) continue // nothing in the future
         activities.push({
           id: id(),
           lead_id: l.id,
@@ -139,7 +266,14 @@ export function demoData() {
   }
   for (const l of leads) {
     if (l.last_outcome && l.last_called_at) {
-      activities.push({ id: id(), lead_id: l.id, user_name: l.owner || 'K', outcome: l.last_outcome, note: l.last_outcome === 'callback' ? 'Asked to call back' : '', created_at: l.last_called_at })
+      activities.push({
+        id: id(),
+        lead_id: l.id,
+        user_name: l.owner || 'K',
+        outcome: l.last_outcome,
+        note: l.last_outcome === 'callback' ? 'Asked to call back' : '',
+        created_at: l.last_called_at,
+      })
     }
   }
 
@@ -158,18 +292,51 @@ export function demoData() {
     created_by: 'K',
     created_at: iso(now - 3 * H),
   }))
-  tasks.push({ id: id(), lead_id: null, kind: 'todo', owner: 'K', due_at: iso(at(0, 16)), reason: 'Export GHL contacts and import here', done_at: null, created_by: 'K', created_at: iso(now - H) })
+  tasks.push({
+    id: id(),
+    lead_id: null,
+    kind: 'todo',
+    owner: 'K',
+    due_at: iso(at(0, 16)),
+    reason: 'Export GHL contacts and import here',
+    done_at: null,
+    created_by: 'K',
+    created_at: iso(now - H),
+  })
 
   /* meetings ------------------------------------------------------------- */
   const meetings: Meeting[] = []
   const booked = leads.filter((l) => l.stage)
-  const slots: [number, number][] = [[1, 9], [1, 11], [-2, 10], [-3, 14], [-6, 9], [-1, 13], [2, 10], [0, 15], [-2, 16], [-5, 11], [-4, 9], [3, 14]]
+  const slots: [number, number][] = [
+    [1, 9],
+    [1, 11],
+    [-2, 10],
+    [-3, 14],
+    [-6, 9],
+    [-1, 13],
+    [2, 10],
+    [0, 15],
+    [-2, 16],
+    [-5, 11],
+    [-4, 9],
+    [3, 14],
+  ]
   booked.forEach((l, i) => {
     const [dd, hh] = slots[i % slots.length]
     const t = at(dd, hh)
     const past = t < now
     const status = l.stage === 'no_show' ? 'no_show' : l.stage === 'booked' ? 'scheduled' : past && l.stage !== 'confirmed' ? 'showed' : 'confirmed'
-    meetings.push({ id: id(), lead_id: l.id, owner: l.owner || 'K', starts_at: iso(t), minutes: 30, status, why_now: l.why_now, source: i % 4 === 3 ? 'calendly' : 'dialer', created_at: iso(t - 2 * D) })
+    meetings.push({
+      id: id(),
+      lead_id: l.id,
+      owner: l.owner || 'K',
+      starts_at: iso(t),
+      minutes: 30,
+      status,
+      why_now: l.why_now,
+      source: i % 4 === 3 ? 'calendly' : 'dialer',
+      created_at: iso(t - 2 * D),
+    })
     l.meeting_at = iso(t)
   })
 
@@ -211,11 +378,41 @@ export function demoData() {
         created_at: iso(sentAt - H),
       }
       emails.push(e)
-      events.push({ id: id(), email_id: e.id, lead_id: l.id, type: bounced ? 'bounce' : 'sent', url: '', created_at: iso(sentAt) })
-      for (let o = 0; o < opens; o++) events.push({ id: id(), email_id: e.id, lead_id: l.id, type: 'open', url: '', created_at: iso(sentAt + (2 + o * 5) * H) })
-      if (clicks) events.push({ id: id(), email_id: e.id, lead_id: l.id, type: 'click', url: 'https://rebootmedia.us/visibility-check', created_at: iso(sentAt + 3 * H) })
+      events.push({
+        id: id(),
+        email_id: e.id,
+        lead_id: l.id,
+        type: bounced ? 'bounce' : 'sent',
+        url: '',
+        created_at: iso(sentAt),
+      })
+      for (let o = 0; o < opens; o++)
+        events.push({
+          id: id(),
+          email_id: e.id,
+          lead_id: l.id,
+          type: 'open',
+          url: '',
+          created_at: iso(sentAt + (2 + o * 5) * H),
+        })
+      if (clicks)
+        events.push({
+          id: id(),
+          email_id: e.id,
+          lead_id: l.id,
+          type: 'click',
+          url: 'https://rebootmedia.us/visibility-check',
+          created_at: iso(sentAt + 3 * H),
+        })
       if (replied) {
-        events.push({ id: id(), email_id: e.id, lead_id: l.id, type: 'reply', url: '', created_at: iso(sentAt + 9 * H) })
+        events.push({
+          id: id(),
+          email_id: e.id,
+          lead_id: l.id,
+          type: 'reply',
+          url: '',
+          created_at: iso(sentAt + 9 * H),
+        })
         emails.push({
           ...e,
           id: id(),
@@ -268,12 +465,49 @@ export function demoData() {
   }
 
   /* lists, campaigns, templates, forms ---------------------------------- */
-  const blank = { tags_any: [], tags_none: [], pain: [], segment: [], status: [], has_email: false }
+  const blank = {
+    tags_any: [],
+    tags_none: [],
+    pain: [],
+    segment: [],
+    status: [],
+    has_email: false,
+  }
   const lists: SmartList[] = [
-    { id: id(), name: 'Dial list: never ran ads', filter: { ...blank, tags_any: ['call'], pain: ['never-ads'], segment: ['growing'] }, created_at: iso(now - 9 * D) },
-    { id: id(), name: 'Growing email list', filter: { ...blank, tags_any: ['email'], tags_none: ['shark', 'commercial'], has_email: true }, created_at: iso(now - 9 * D) },
-    { id: id(), name: 'Shark ($5M+)', filter: { ...blank, segment: ['shark'] }, created_at: iso(now - 9 * D) },
-    { id: id(), name: 'Commercial', filter: { ...blank, segment: ['commercial'] }, created_at: iso(now - 9 * D) },
+    {
+      id: id(),
+      name: 'Dial list: never ran ads',
+      filter: {
+        ...blank,
+        tags_any: ['call'],
+        pain: ['never-ads'],
+        segment: ['growing'],
+      },
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'Growing email list',
+      filter: {
+        ...blank,
+        tags_any: ['email'],
+        tags_none: ['shark', 'commercial'],
+        has_email: true,
+      },
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'Shark ($5M+)',
+      filter: { ...blank, segment: ['shark'] },
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'Commercial',
+      filter: { ...blank, segment: ['commercial'] },
+      created_at: iso(now - 9 * D),
+    },
   ]
   const campaigns: Campaign[] = [
     {
@@ -282,13 +516,29 @@ export function demoData() {
       list_id: lists[1].id,
       status: 'sent',
       variants: [
-        { key: 'A', subject: 'Consistent Jobs, Even In Slow Months', body: 'Hi {first}, ...' },
-        { key: 'B', subject: 'Your Next Extra Million In Roofs', body: 'Hi {first}, ...' },
+        {
+          key: 'A',
+          subject: 'Consistent Jobs, Even In Slow Months',
+          body: 'Hi {first}, ...',
+        },
+        {
+          key: 'B',
+          subject: 'Your Next Extra Million In Roofs',
+          body: 'Hi {first}, ...',
+        },
       ],
       scheduled_at: iso(now - 6 * D),
       created_at: iso(now - 8 * D),
     },
-    { id: id(), name: 'Shark: per-market ads', list_id: lists[2].id, status: 'draft', variants: [{ key: 'A', subject: 'Owning {city} Search', body: 'Hi {first}, ...' }], scheduled_at: null, created_at: iso(now - 2 * D) },
+    {
+      id: id(),
+      name: 'Shark: per-market ads',
+      list_id: lists[2].id,
+      status: 'draft',
+      variants: [{ key: 'A', subject: 'Owning {city} Search', body: 'Hi {first}, ...' }],
+      scheduled_at: null,
+      created_at: iso(now - 2 * D),
+    },
   ]
   // Campaign sends for the A/B so the results table has numbers.
   leads
@@ -324,15 +574,59 @@ export function demoData() {
         created_at: iso(sentAt),
       }
       emails.push(e)
-      if (opens) events.push({ id: id(), email_id: e.id, lead_id: l.id, type: 'open', url: '', created_at: iso(sentAt + 3 * H) })
-      if (clicks) events.push({ id: id(), email_id: e.id, lead_id: l.id, type: 'click', url: 'https://rebootmedia.us/grow', created_at: iso(sentAt + 4 * H) })
+      if (opens)
+        events.push({
+          id: id(),
+          email_id: e.id,
+          lead_id: l.id,
+          type: 'open',
+          url: '',
+          created_at: iso(sentAt + 3 * H),
+        })
+      if (clicks)
+        events.push({
+          id: id(),
+          email_id: e.id,
+          lead_id: l.id,
+          type: 'click',
+          url: 'https://rebootmedia.us/grow',
+          created_at: iso(sentAt + 4 * H),
+        })
     })
 
   const templates: Template[] = [
-    { id: id(), name: 'Booking confirmation text', kind: 'text', subject: '', body: "Hey {first}, it's {me}. You're locked for {when} to look at {why}. Text me back YES so I hold it.", created_at: iso(now - 9 * D) },
-    { id: id(), name: 'Cold email 1 (plain)', kind: 'plain', subject: 'Quick Question About {company}', body: sequences[0].steps[0].body, created_at: iso(now - 9 * D) },
-    { id: id(), name: 'Branded follow-up', kind: 'branded', subject: 'Your Visibility Check, {first}', body: sequences[0].steps[1].body, created_at: iso(now - 9 * D) },
-    { id: id(), name: 'No-book follow-up', kind: 'branded', subject: 'Still Want That Look, {first}?', body: 'Hi {first},\n\nYou started booking but did not pick a time. Tap here to grab one.\n\nKendall', created_at: iso(now - 9 * D) },
+    {
+      id: id(),
+      name: 'Booking confirmation text',
+      kind: 'text',
+      subject: '',
+      body: "Hey {first}, it's {me}. You're locked for {when} to look at {why}. Text me back YES so I hold it.",
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'Cold email 1 (plain)',
+      kind: 'plain',
+      subject: 'Quick Question About {company}',
+      body: sequences[0].steps[0].body,
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'Branded follow-up',
+      kind: 'branded',
+      subject: 'Your Visibility Check, {first}',
+      body: sequences[0].steps[1].body,
+      created_at: iso(now - 9 * D),
+    },
+    {
+      id: id(),
+      name: 'No-book follow-up',
+      kind: 'branded',
+      subject: 'Still Want That Look, {first}?',
+      body: 'Hi {first},\n\nYou started booking but did not pick a time. Tap here to grab one.\n\nKendall',
+      created_at: iso(now - 9 * D),
+    },
   ]
 
   const forms: FormSubmission[] = leads
@@ -342,10 +636,143 @@ export function demoData() {
       form: (['visibility-check', 'grow', 'scale', 'commercial'] as const)[i % 4],
       lead_id: l.id,
       page: ['/visibility-check', '/grow', '/scale', '/commercial'][i % 4],
-      fields: { name: `${l.first_name} ${l.last_name}`, company: l.company, email: l.email, phone: l.phone, city: l.city, website: l.website },
+      fields: {
+        name: `${l.first_name} ${l.last_name}`,
+        company: l.company,
+        email: l.email,
+        phone: l.phone,
+        city: l.city,
+        website: l.website,
+      },
       created_at: iso(now - (i + 1) * 9 * H),
     }))
-  for (const f of forms) activities.push({ id: id(), lead_id: f.lead_id!, user_name: 'Website', outcome: 'form', note: `Filled ${f.page}`, created_at: f.created_at })
+  for (const f of forms)
+    activities.push({
+      id: id(),
+      lead_id: f.lead_id!,
+      user_name: 'Website',
+      outcome: 'form',
+      note: `Filled ${f.page}`,
+      created_at: f.created_at,
+    })
 
-  return { leads, activities, tasks, meetings, emails, email_events: events, sequences, campaigns, lists, templates, forms }
+  /* phone numbers + calls -------------------------------------------------- */
+  const num = (n: number) => `+1512555${String(100 + n).padStart(4, '0')}`
+  const mk = (label: string, kind: PhoneNumber['kind'], source: string, owner: string | null, n: number): PhoneNumber => ({
+    id: id(),
+    number: num(n),
+    label,
+    kind,
+    source,
+    owner,
+    forward_to: owner === 'Ali' ? num(91) : num(90),
+    record: true,
+    active: true,
+    created_at: iso(now - 30 * D),
+  })
+  const numbers: PhoneNumber[] = [
+    mk("K's line", 'line', 'Cold calling', 'K', 1),
+    mk("Ali's line", 'line', 'Cold calling', 'Ali', 2),
+    mk('Website', 'tracking', 'Website', 'K', 3),
+    mk('Google Business Profile', 'tracking', 'Google Business Profile', 'K', 4),
+    mk('Cold email signature', 'tracking', 'Cold email', 'K', 5),
+    mk('Meta Ads', 'tracking', 'Meta Ads', 'Ali', 6),
+  ]
+  const line = (who: string) => numbers.find((x) => x.kind === 'line' && x.owner === who)!
+  const DUR: Partial<Record<Outcome, [number, number, Call['status']]>> = {
+    no_answer: [18, 30, 'no_answer'],
+    voicemail: [22, 45, 'voicemail'],
+    gatekeeper: [35, 110, 'completed'],
+    callback: [60, 200, 'completed'],
+    booked: [260, 640, 'completed'],
+    not_interested: [25, 140, 'completed'],
+    bad_number: [4, 10, 'failed'],
+    dnc: [20, 60, 'completed'],
+  }
+  const calls: Call[] = []
+  for (const a of activities) {
+    const d = DUR[a.outcome]
+    if (!d || a.user_name === 'Website') continue
+    const l = leads.find((x) => x.id === a.lead_id)!
+    const ln = line(a.user_name) || numbers[0]
+    const dur = Math.round(d[0] + r() * (d[1] - d[0]))
+    calls.push({
+      id: id(),
+      lead_id: l.id,
+      direction: 'out',
+      user_name: a.user_name,
+      from_number: ln.number,
+      to_number: l.phone,
+      number_id: ln.id,
+      source: 'Cold calling',
+      status: d[2],
+      started_at: iso(new Date(a.created_at).getTime() - dur * 1000),
+      duration_sec: dur,
+      recording_url: d[2] === 'completed' ? 'demo' : '',
+      outcome: a.outcome,
+      via: 'browser',
+      provider_id: null,
+      created_at: a.created_at,
+    })
+  }
+  // Inbound: roofers calling back the tracking numbers, some missed.
+  const tracking = numbers.filter((x) => x.kind === 'tracking')
+  for (let k = 0; k < 26; k++) {
+    const t = now - Math.floor(r() * 13 * D) - 2 * H
+    const hr = new Date(t).getHours()
+    if (hr < 7 || hr > 19) continue
+    const tn = tracking[k % tracking.length]
+    const known = r() < 0.7 ? leads[Math.floor(r() * N)] : null
+    const missed = r() < 0.3
+    const dur = missed ? 0 : Math.round(45 + r() * 400)
+    calls.push({
+      id: id(),
+      lead_id: known?.id ?? null,
+      direction: 'in',
+      user_name: missed ? '' : tn.owner || 'K',
+      from_number: known?.phone ?? `+1737555${String(200 + k).padStart(4, '0')}`,
+      to_number: tn.number,
+      number_id: tn.id,
+      source: tn.source,
+      status: missed ? 'missed' : 'completed',
+      started_at: iso(t),
+      duration_sec: dur,
+      recording_url: missed ? '' : 'demo',
+      outcome: null,
+      via: 'forward',
+      provider_id: null,
+      created_at: iso(t),
+    })
+  }
+  // The latest missed inbound from a known roofer becomes a callback task.
+  const lastMissed = calls.filter((c) => c.direction === 'in' && c.status === 'missed' && c.lead_id).sort((a, b) => b.started_at.localeCompare(a.started_at))[0]
+  if (lastMissed) {
+    tasks.push({
+      id: id(),
+      lead_id: lastMissed.lead_id,
+      kind: 'callback',
+      owner: numbers.find((x) => x.id === lastMissed.number_id)?.owner || 'K',
+      due_at: lastMissed.started_at,
+      reason: `Missed call on ${numbers.find((x) => x.id === lastMissed.number_id)?.label}`,
+      done_at: null,
+      created_by: 'Phone',
+      created_at: lastMissed.started_at,
+    })
+  }
+
+  return {
+    leads,
+    activities,
+    tasks,
+    meetings,
+    emails,
+    email_events: events,
+    sequences,
+    campaigns,
+    lists,
+    templates,
+    forms,
+    calls,
+    numbers,
+  }
 }

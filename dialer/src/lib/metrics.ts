@@ -19,7 +19,11 @@ export function perDay(activities: Activity[], days: number, pick: (a: Activity)
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    out.push({ label: `${d.getMonth() + 1}/${d.getDate()}`, value: counts.get(dayKey(d.toISOString())) || 0, highlight: i === 0 })
+    out.push({
+      label: `${d.getMonth() + 1}/${d.getDate()}`,
+      value: counts.get(dayKey(d.toISOString())) || 0,
+      highlight: i === 0,
+    })
   }
   return out
 }

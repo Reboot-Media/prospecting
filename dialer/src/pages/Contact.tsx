@@ -13,13 +13,33 @@ function steps(l: Lead, firstCall: string | null, firstConvo: string | null) {
   const reached = (s: string) => (l.stage ? order.indexOf(l.stage === 'no_show' ? 'confirmed' : l.stage === 'lost' ? 'booked' : l.stage) >= order.indexOf(s) : false)
   return [
     { label: 'Added', done: true, sub: ago(l.created_at) },
-    { label: 'Dialed', done: l.attempts > 0, sub: firstCall ? ago(firstCall) : '' },
-    { label: 'Conversation', done: !!firstConvo || reached('booked'), sub: firstConvo ? ago(firstConvo) : '' },
-    { label: 'Booked', done: reached('booked'), sub: l.meeting_at ? when(l.meeting_at) : '' },
-    { label: 'Confirmed', done: reached('confirmed'), sub: l.stage === 'no_show' ? 'No-show' : '' },
+    {
+      label: 'Dialed',
+      done: l.attempts > 0,
+      sub: firstCall ? ago(firstCall) : '',
+    },
+    {
+      label: 'Conversation',
+      done: !!firstConvo || reached('booked'),
+      sub: firstConvo ? ago(firstConvo) : '',
+    },
+    {
+      label: 'Booked',
+      done: reached('booked'),
+      sub: l.meeting_at ? when(l.meeting_at) : '',
+    },
+    {
+      label: 'Confirmed',
+      done: reached('confirmed'),
+      sub: l.stage === 'no_show' ? 'No-show' : '',
+    },
     { label: 'Showed', done: reached('showed'), sub: '' },
     { label: 'Proposal', done: reached('proposal'), sub: '' },
-    { label: 'Signed', done: l.stage === 'won', sub: l.stage === 'lost' ? 'Lost' : '' },
+    {
+      label: 'Signed',
+      done: l.stage === 'won',
+      sub: l.stage === 'lost' ? 'Lost' : '',
+    },
   ]
 }
 
@@ -74,7 +94,9 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
           {st.map((s, i) => (
             <li key={s.label} className="relative flex-1">
               <div className="flex items-center">
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${s.done ? 'bg-ink-900 text-white' : 'bg-white text-ink-300 ring-1 ring-inset ring-line'}`}>
+                <span
+                  className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${s.done ? 'bg-ink-900 text-white' : 'bg-white text-ink-300 ring-1 ring-inset ring-line'}`}
+                >
                   {s.done ? <Icon name="check" className="h-3.5 w-3.5" /> : i + 1}
                 </span>
                 {i < st.length - 1 && <span className={`mx-1 h-px flex-1 ${st[i + 1].done ? 'bg-ink-900' : 'border-t border-dashed border-ink-300'}`} />}
@@ -148,7 +170,14 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
               actions={
                 seq &&
                 lead.sequence_state && (
-                  <Button size="sm" onClick={() => updateLead(lead.id, { sequence_state: lead.sequence_state === 'paused' ? 'active' : 'paused' })}>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      updateLead(lead.id, {
+                        sequence_state: lead.sequence_state === 'paused' ? 'active' : 'paused',
+                      })
+                    }
+                  >
                     <Icon name={lead.sequence_state === 'paused' ? 'play' : 'pause'} /> {lead.sequence_state === 'paused' ? 'Resume' : 'Pause'}
                   </Button>
                 )
@@ -186,7 +215,15 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
               {lead.tags.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-md bg-wash px-2 py-0.5 text-xs text-ink-700 ring-1 ring-inset ring-line">
                   {t}
-                  <button aria-label={`Remove ${t}`} onClick={() => updateLead(lead.id, { tags: lead.tags.filter((x) => x !== t) })} className="text-ink-400 hover:text-ink-900">
+                  <button
+                    aria-label={`Remove ${t}`}
+                    onClick={() =>
+                      updateLead(lead.id, {
+                        tags: lead.tags.filter((x) => x !== t),
+                      })
+                    }
+                    className="text-ink-400 hover:text-ink-900"
+                  >
                     <Icon name="x" className="h-3 w-3" />
                   </button>
                 </span>
@@ -199,7 +236,12 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
                   setTag('')
                 }}
               >
-                <input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="+ tag" className="h-6 w-20 rounded-md border border-dashed border-line px-1.5 text-xs outline-none focus:border-ink-400" />
+                <input
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                  placeholder="+ tag"
+                  className="h-6 w-20 rounded-md border border-dashed border-line px-1.5 text-xs outline-none focus:border-ink-400"
+                />
               </form>
             </div>
           </Card>
@@ -233,7 +275,17 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
                     const d = new Date()
                     d.setDate(d.getDate() + (days as number))
                     d.setHours(9, 0, 0, 0)
-                    save('tasks', { id: crypto.randomUUID(), lead_id: lead.id, kind: 'follow_up', owner: lead.owner || data.settings.callers[0], due_at: d.toISOString(), reason: label as string, done_at: null, created_by: me.name, created_at: new Date().toISOString() })
+                    save('tasks', {
+                      id: crypto.randomUUID(),
+                      lead_id: lead.id,
+                      kind: 'follow_up',
+                      owner: lead.owner || data.settings.callers[0],
+                      due_at: d.toISOString(),
+                      reason: label as string,
+                      done_at: null,
+                      created_by: me.name,
+                      created_at: new Date().toISOString(),
+                    })
                   }}
                 >
                   {label}

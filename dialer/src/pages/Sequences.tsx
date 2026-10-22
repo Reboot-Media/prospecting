@@ -6,7 +6,11 @@ import { emailStats } from '../lib/metrics'
 import { useData } from '../lib/store'
 import type { Sequence, SequenceStep } from '../lib/types'
 
-const LANE_LABEL: Record<Sequence['lane'], string> = { ...PAIN_LABEL, shark: 'Shark', commercial: 'Commercial' }
+const LANE_LABEL: Record<Sequence['lane'], string> = {
+  ...PAIN_LABEL,
+  shark: 'Shark',
+  commercial: 'Commercial',
+}
 
 export function Sequences() {
   const { data, save } = useData()
@@ -29,7 +33,14 @@ export function Sequences() {
           <Button
             variant="primary"
             onClick={() => {
-              const s: Sequence = { id: uid(), name: 'New sequence', lane: 'never-ads', status: 'paused', steps: [{ day: 0, subject: '', body: '', branded: false }], created_at: new Date().toISOString() }
+              const s: Sequence = {
+                id: uid(),
+                name: 'New sequence',
+                lane: 'never-ads',
+                status: 'paused',
+                steps: [{ day: 0, subject: '', body: '', branded: false }],
+                created_at: new Date().toISOString(),
+              }
               save('sequences', s).then(() => setOpen(s.id))
             }}
           >
@@ -40,10 +51,34 @@ export function Sequences() {
       <div className="mb-5">
         <StatStrip
           items={[
-            { label: 'Sent today', icon: 'send', value: `${sentToday} / ${cap}`, sub: 'Daily cap, first emails and follow-ups share it' },
-            { label: 'Open rate', icon: 'eye', value: pct(all.opened, all.delivered), sub: 'Apple Mail inflates this' },
-            { label: 'Reply rate', icon: 'reply', value: pct(all.replied, all.delivered), sub: `${all.replied} replies` },
-            { label: 'Bounce rate', icon: 'alert', value: pct(all.bounced, all.sent), sub: `Auto-pause above ${data.settings.bounce_pause_pct}%`, delta: { text: bounceRate > data.settings.bounce_pause_pct ? 'over' : 'healthy', good: bounceRate <= data.settings.bounce_pause_pct } },
+            {
+              label: 'Sent today',
+              icon: 'send',
+              value: `${sentToday} / ${cap}`,
+              sub: 'Daily cap, first emails and follow-ups share it',
+            },
+            {
+              label: 'Open rate',
+              icon: 'eye',
+              value: pct(all.opened, all.delivered),
+              sub: 'Apple Mail inflates this',
+            },
+            {
+              label: 'Reply rate',
+              icon: 'reply',
+              value: pct(all.replied, all.delivered),
+              sub: `${all.replied} replies`,
+            },
+            {
+              label: 'Bounce rate',
+              icon: 'alert',
+              value: pct(all.bounced, all.sent),
+              sub: `Auto-pause above ${data.settings.bounce_pause_pct}%`,
+              delta: {
+                text: bounceRate > data.settings.bounce_pause_pct ? 'over' : 'healthy',
+                good: bounceRate <= data.settings.bounce_pause_pct,
+              },
+            },
           ]}
         />
       </div>
@@ -89,10 +124,19 @@ export function Sequences() {
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-xs text-ink-500">
-                  {enrolled.filter((l) => l.sequence_state === 'active').length} active · {enrolled.filter((l) => l.sequence_state === 'replied').length} replied · {st.bounced} bounced
+                  {enrolled.filter((l) => l.sequence_state === 'active').length} active · {enrolled.filter((l) => l.sequence_state === 'replied').length} replied · {st.bounced}{' '}
+                  bounced
                 </span>
                 <div className="flex gap-1.5">
-                  <Button size="sm" onClick={() => save('sequences', { ...s, status: s.status === 'active' ? 'paused' : 'active' })}>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      save('sequences', {
+                        ...s,
+                        status: s.status === 'active' ? 'paused' : 'active',
+                      })
+                    }
+                  >
                     <Icon name={s.status === 'active' ? 'pause' : 'play'} /> {s.status === 'active' ? 'Pause' : 'Run'}
                   </Button>
                   <Button size="sm" onClick={() => setOpen(s.id)}>
@@ -114,7 +158,11 @@ function SequenceDetail({ seq, back }: { seq: Sequence; back(): void }) {
   const [saved, setSaved] = useState(false)
   const [armDelete, setArmDelete] = useState(false)
   const stepStats = useMemo(() => draft.steps.map((_, i) => emailStats(data.emails.filter((e) => e.sequence_id === seq.id && e.step === i))), [data.emails, seq.id, draft.steps])
-  const setStep = (i: number, p: Partial<SequenceStep>) => setDraft((d) => ({ ...d, steps: d.steps.map((s, k) => (k === i ? { ...s, ...p } : s)) }))
+  const setStep = (i: number, p: Partial<SequenceStep>) =>
+    setDraft((d) => ({
+      ...d,
+      steps: d.steps.map((s, k) => (k === i ? { ...s, ...p } : s)),
+    }))
 
   return (
     <div className="max-w-4xl">
@@ -146,10 +194,23 @@ function SequenceDetail({ seq, back }: { seq: Sequence; back(): void }) {
           <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
         </Field>
         <Field label="Lane">
-          <Select value={draft.lane} onChange={(v) => setDraft({ ...draft, lane: v as Sequence['lane'] })} options={Object.entries(LANE_LABEL) as [string, string][]} className="h-9 w-full" />
+          <Select
+            value={draft.lane}
+            onChange={(v) => setDraft({ ...draft, lane: v as Sequence['lane'] })}
+            options={Object.entries(LANE_LABEL) as [string, string][]}
+            className="h-9 w-full"
+          />
         </Field>
         <Field label="Status">
-          <Select value={draft.status} onChange={(v) => setDraft({ ...draft, status: v as Sequence['status'] })} options={[['active', 'Running'], ['paused', 'Paused']]} className="h-9 w-full" />
+          <Select
+            value={draft.status}
+            onChange={(v) => setDraft({ ...draft, status: v as Sequence['status'] })}
+            options={[
+              ['active', 'Running'],
+              ['paused', 'Paused'],
+            ]}
+            className="h-9 w-full"
+          />
         </Field>
       </Card>
       <div className="space-y-3">
@@ -160,7 +221,17 @@ function SequenceDetail({ seq, back }: { seq: Sequence; back(): void }) {
               sub={`Day ${s.day} · sent ${stepStats[i]?.sent || 0} · opened ${pct(stepStats[i]?.opened || 0, stepStats[i]?.delivered || 0)} · replied ${pct(stepStats[i]?.replied || 0, stepStats[i]?.delivered || 0)}`}
               actions={
                 draft.steps.length > 1 && (
-                  <Button size="sm" variant="ghost" aria-label={`Remove email ${i + 1}`} onClick={() => setDraft((d) => ({ ...d, steps: d.steps.filter((_, k) => k !== i) }))}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Remove email ${i + 1}`}
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        steps: d.steps.filter((_, k) => k !== i),
+                      }))
+                    }
+                  >
                     <Icon name="trash" />
                   </Button>
                 )
@@ -184,7 +255,22 @@ function SequenceDetail({ seq, back }: { seq: Sequence; back(): void }) {
         ))}
       </div>
       <div className="mt-3 flex justify-between">
-        <Button onClick={() => setDraft((d) => ({ ...d, steps: [...d.steps, { day: (d.steps[d.steps.length - 1]?.day || 0) + 4, subject: '', body: '', branded: true }] }))}>
+        <Button
+          onClick={() =>
+            setDraft((d) => ({
+              ...d,
+              steps: [
+                ...d.steps,
+                {
+                  day: (d.steps[d.steps.length - 1]?.day || 0) + 4,
+                  subject: '',
+                  body: '',
+                  branded: true,
+                },
+              ],
+            }))
+          }
+        >
           <Icon name="plus" /> Add email
         </Button>
         <Button

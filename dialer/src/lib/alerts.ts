@@ -36,7 +36,11 @@ export function notify(title: string, body: string, onClick?: () => void) {
   beep()
   if (notifyPermission() !== 'granted') return
   try {
-    const n = new Notification(title, { body, tag: title + body, requireInteraction: true })
+    const n = new Notification(title, {
+      body,
+      tag: title + body,
+      requireInteraction: true,
+    })
     n.onclick = () => {
       window.focus()
       onClick?.()

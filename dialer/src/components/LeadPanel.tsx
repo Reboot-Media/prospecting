@@ -5,9 +5,11 @@ import { ago, fullName, prettyPhone, when } from '../lib/format'
 import type { Email, Lead, Pain, Segment, Stage, Status } from '../lib/types'
 import { useData } from '../lib/store'
 import { fillTemplate, smsHref } from './OutcomeModals'
+import { fmtDur, useCall } from './CallBar'
 
 export function LeadHeader({ lead, big }: { lead: Lead; big?: boolean }) {
   const { me, data } = useData()
+  const { call, live } = useCall()
   const text = lead.meeting_at ? fillTemplate(data.settings.booking_text, lead, me.name, lead.meeting_at, lead.why_now) : ''
   return (
     <div>
@@ -18,20 +20,30 @@ export function LeadHeader({ lead, big }: { lead: Lead; big?: boolean }) {
         {lead.owner && <span className="text-xs text-ink-500">· Owner {lead.owner}</span>}
       </div>
       <h2 className={`mt-2 font-semibold tracking-tight text-ink-900 ${big ? 'text-2xl' : 'text-lg'}`}>{lead.company}</h2>
-      <div className="mt-0.5 text-sm text-ink-500">
-        {[fullName(lead), [lead.city, lead.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ') || 'No contact name'}
-      </div>
+      <div className="mt-0.5 text-sm text-ink-500">{[fullName(lead), [lead.city, lead.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ') || 'No contact name'}</div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <a href={`tel:${lead.phone}`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-sage-600 px-4 text-sm font-semibold text-white hover:bg-sage-700">
-          <Icon name="phone" /> {prettyPhone(lead.phone)}
-        </a>
+        <button
+          onClick={() => call(lead)}
+          disabled={!!live && live.state !== 'ended'}
+          className="inline-flex h-10 items-center gap-2 rounded-lg bg-sage-600 px-4 text-sm font-semibold text-white hover:bg-sage-700 disabled:opacity-60"
+        >
+          <Icon name="phone" /> {live && live.lead.id === lead.id && live.state !== 'ended' ? 'On call…' : prettyPhone(lead.phone)}
+        </button>
         {lead.status === 'booked' && text && (
-          <a href={smsHref(lead.phone, text)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-3.5 text-sm font-medium text-ink-900 ring-1 ring-inset ring-line hover:bg-wash">
+          <a
+            href={smsHref(lead.phone, text)}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-3.5 text-sm font-medium text-ink-900 ring-1 ring-inset ring-line hover:bg-wash"
+          >
             <Icon name="message" /> Resend confirmation
           </a>
         )}
         {lead.website && (
-          <a href={/^https?:/.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm text-ink-700 ring-1 ring-inset ring-line hover:bg-wash">
+          <a
+            href={/^https?:/.test(lead.website) ? lead.website : `https://${lead.website}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm text-ink-700 ring-1 ring-inset ring-line hover:bg-wash"
+          >
             <Icon name="globe" /> Website
           </a>
         )}
@@ -54,17 +66,24 @@ export function EmailPulse({ lead }: { lead: Lead }) {
   const opens = out.reduce((a, e) => a + e.opens, 0)
   const clicks = out.reduce((a, e) => a + e.clicks, 0)
   const replied = out.some((e) => e.replied_at)
-  const last = out.map((e) => e.last_open_at).filter(Boolean).sort().pop() || null
+  const last =
+    out
+      .map((e) => e.last_open_at)
+      .filter(Boolean)
+      .sort()
+      .pop() || null
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
       <span className="inline-flex items-center gap-1">
         <Icon name="send" className="h-3.5 w-3.5" /> {out.length} sent
       </span>
       <span className="inline-flex items-center gap-1">
-        <Icon name="eye" className="h-3.5 w-3.5" /> {opens} opens{last ? ` · last ${ago(last)}` : ''}
+        <Icon name="eye" className="h-3.5 w-3.5" /> {opens} opens
+        {last ? ` · last ${ago(last)}` : ''}
       </span>
       <span className="inline-flex items-center gap-1">
-        <Icon name="cursor" className="h-3.5 w-3.5" /> {clicks} click{clicks === 1 ? '' : 's'}
+        <Icon name="cursor" className="h-3.5 w-3.5" /> {clicks} click
+        {clicks === 1 ? '' : 's'}
       </span>
       {replied && <Badge tone="sage">Replied</Badge>}
       {lead.email_status !== 'ok' && <Badge tone="clay">{lead.email_status === 'bounced' ? 'Bounced' : 'Unsubscribed'}</Badge>}
@@ -83,18 +102,46 @@ export function LeadTimeline({ lead, filter = 'all' }: { lead: Lead; filter?: 'a
   const [more, setMore] = useState(false)
   const items = useMemo(() => {
     const out: Item[] = []
+    // Call length per dial, matched by outcome and time.
+    const myCalls = data.calls.filter((c) => c.lead_id === lead.id)
+    const callFor = (outcome: string, at: string) =>
+      myCalls.find((c) => c.direction === 'out' && c.outcome === outcome && Math.abs(new Date(c.created_at).getTime() - new Date(at).getTime()) < 15 * 60e3)
     if (filter !== 'emails')
       for (const a of data.activities)
-        if (a.lead_id === lead.id && (filter === 'all' || (filter === 'notes' ? a.outcome === 'note' : a.outcome !== 'note' && a.outcome !== 'email')))
-          out.push({ kind: 'act', at: a.created_at, title: OUTCOME_LABEL[a.outcome], who: a.user_name, note: a.note })
+        if (a.lead_id === lead.id && (filter === 'all' || (filter === 'notes' ? a.outcome === 'note' : a.outcome !== 'note' && a.outcome !== 'email'))) {
+          const c = callFor(a.outcome, a.created_at)
+          const extra = c && c.duration_sec ? ` · ${fmtDur(c.duration_sec)}${c.recording_url ? ' · recorded' : ''}` : ''
+          out.push({
+            kind: 'act',
+            at: a.created_at,
+            title: OUTCOME_LABEL[a.outcome] + extra,
+            who: a.user_name,
+            note: a.note,
+          })
+        }
+    if (filter === 'all' || filter === 'calls')
+      for (const c of myCalls)
+        if (c.direction === 'in')
+          out.push({
+            kind: 'act',
+            at: c.started_at,
+            title: c.status === 'missed' ? `Missed call · ${c.source}` : `Inbound call · ${c.source} · ${fmtDur(c.duration_sec)}`,
+            who: c.user_name || 'Phone',
+            note: '',
+          })
     if (filter === 'all' || filter === 'emails') {
       for (const e of data.emails) if (e.lead_id === lead.id && e.status !== 'draft') out.push({ kind: 'email', at: e.sent_at || e.created_at, email: e })
       for (const ev of data.email_events)
         if (ev.lead_id === lead.id && (ev.type === 'click' || ev.type === 'bounce' || ev.type === 'unsubscribe'))
-          out.push({ kind: 'event', at: ev.created_at, title: EVENT_LABEL[ev.type], note: ev.url })
+          out.push({
+            kind: 'event',
+            at: ev.created_at,
+            title: EVENT_LABEL[ev.type],
+            note: ev.url,
+          })
     }
     return out.sort((a, b) => b.at.localeCompare(a.at))
-  }, [data.activities, data.emails, data.email_events, lead.id, filter])
+  }, [data.activities, data.emails, data.email_events, data.calls, lead.id, filter])
   const open = data.tasks.filter((c) => c.lead_id === lead.id && !c.done_at)
 
   return (
@@ -126,7 +173,9 @@ export function LeadTimeline({ lead, filter = 'all' }: { lead: Lead; filter?: 'a
         {items.slice(0, more ? 300 : 20).map((it, i) => (
           <li key={i} className="relative flex gap-3 pb-3.5 pl-0.5">
             <span className="absolute left-[7px] top-5 h-[calc(100%-12px)] w-px bg-line" />
-            <span className={`relative mt-1 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ring-4 ring-white ${it.kind === 'email' ? 'bg-accent-200' : it.kind === 'event' ? 'bg-sand-400' : 'bg-ink-300'}`} />
+            <span
+              className={`relative mt-1 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ring-4 ring-white ${it.kind === 'email' ? 'bg-accent-200' : it.kind === 'event' ? 'bg-sand-400' : 'bg-ink-300'}`}
+            />
             <div className="min-w-0 flex-1">
               {it.kind === 'email' ? (
                 <EmailRow e={it.email} />
@@ -160,7 +209,9 @@ function EmailRow({ e }: { e: Email }) {
   return (
     <div>
       <button onClick={() => setOpen(!open)} className="flex w-full flex-wrap items-baseline gap-x-2 text-left text-sm">
-        <span className="font-medium text-ink-900">{e.direction === 'in' ? 'Reply received' : e.status === 'bounced' ? 'Email bounced' : e.status === 'approved' ? 'Email queued' : 'Email sent'}</span>
+        <span className="font-medium text-ink-900">
+          {e.direction === 'in' ? 'Reply received' : e.status === 'bounced' ? 'Email bounced' : e.status === 'approved' ? 'Email queued' : 'Email sent'}
+        </span>
         <span className="text-xs text-ink-400">{ago(e.sent_at || e.created_at)}</span>
       </button>
       <div className="mt-0.5 truncate text-sm text-ink-700">{e.subject}</div>
@@ -197,11 +248,56 @@ export function LeadEditor({ lead }: { lead: Lead }) {
   )
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {sel('Call status', <Select label="Call status" value={lead.status} onChange={(v) => updateLead(lead.id, { status: v as Status })} options={Object.entries(STATUS_LABEL) as [string, string][]} className="w-full" />)}
-      {sel('Deal stage', <Select label="Deal stage" value={lead.stage || ''} onChange={(v) => setStage(lead, (v || null) as Stage | null)} options={[['', 'Not in pipeline'], ...(Object.entries(STAGE_LABEL) as [string, string][])]} className="w-full" />)}
-      {sel('Owner', <Select label="Owner" value={lead.owner || ''} onChange={(v) => updateLead(lead.id, { owner: v || null })} options={[['', 'Unassigned'], ...callers.map((c) => [c, c] as [string, string])]} className="w-full" />)}
-      {sel('Pain', <Select label="Pain" value={lead.pain} onChange={(v) => updateLead(lead.id, { pain: v as Pain })} options={Object.entries(PAIN_LABEL) as [string, string][]} className="w-full" />)}
-      {sel('Segment', <Select label="Segment" value={lead.segment} onChange={(v) => updateLead(lead.id, { segment: v as Segment })} options={Object.entries(SEGMENT_LABEL) as [string, string][]} className="w-full" />)}
+      {sel(
+        'Call status',
+        <Select
+          label="Call status"
+          value={lead.status}
+          onChange={(v) => updateLead(lead.id, { status: v as Status })}
+          options={Object.entries(STATUS_LABEL) as [string, string][]}
+          className="w-full"
+        />,
+      )}
+      {sel(
+        'Deal stage',
+        <Select
+          label="Deal stage"
+          value={lead.stage || ''}
+          onChange={(v) => setStage(lead, (v || null) as Stage | null)}
+          options={[['', 'Not in pipeline'], ...(Object.entries(STAGE_LABEL) as [string, string][])]}
+          className="w-full"
+        />,
+      )}
+      {sel(
+        'Owner',
+        <Select
+          label="Owner"
+          value={lead.owner || ''}
+          onChange={(v) => updateLead(lead.id, { owner: v || null })}
+          options={[['', 'Unassigned'], ...callers.map((c) => [c, c] as [string, string])]}
+          className="w-full"
+        />,
+      )}
+      {sel(
+        'Pain',
+        <Select
+          label="Pain"
+          value={lead.pain}
+          onChange={(v) => updateLead(lead.id, { pain: v as Pain })}
+          options={Object.entries(PAIN_LABEL) as [string, string][]}
+          className="w-full"
+        />,
+      )}
+      {sel(
+        'Segment',
+        <Select
+          label="Segment"
+          value={lead.segment}
+          onChange={(v) => updateLead(lead.id, { segment: v as Segment })}
+          options={Object.entries(SEGMENT_LABEL) as [string, string][]}
+          className="w-full"
+        />,
+      )}
       {sel(
         'Deal value',
         <input
@@ -239,7 +335,11 @@ export function ComposeModal({ lead, open, onClose }: { lead: Lead; open: boolea
       setBody(`Hi ${lead.first_name || 'there'},\n\n\n\n${me.name === 'K' ? 'Kendall' : me.name}`)
     }
   }, [open, lead.id, lead.first_name, me.name])
-  const fill = (s: string) => s.replaceAll('{first}', lead.first_name || 'there').replaceAll('{company}', lead.company).replaceAll('{city}', lead.city)
+  const fill = (s: string) =>
+    s
+      .replaceAll('{first}', lead.first_name || 'there')
+      .replaceAll('{company}', lead.company)
+      .replaceAll('{city}', lead.city)
   const canSend = !!lead.email && lead.email_status === 'ok'
 
   async function submit() {
@@ -293,4 +393,3 @@ export function ComposeModal({ lead, open, onClose }: { lead: Lead; open: boolea
     </Modal>
   )
 }
-

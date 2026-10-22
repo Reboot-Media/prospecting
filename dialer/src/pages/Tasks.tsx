@@ -30,14 +30,34 @@ export function Tasks({ openContact, callNow }: { openContact(id: string): void;
       <PageHeader
         title="Tasks"
         sub="Callbacks from the dialer plus anything else you need to do. Due ones beep and pop up while the app is open."
-        actions={<Select label="Whose" value={who} onChange={setWho} options={[['mine', 'Mine'], ['all', 'Everyone']]} />}
+        actions={
+          <Select
+            label="Whose"
+            value={who}
+            onChange={setWho}
+            options={[
+              ['mine', 'Mine'],
+              ['all', 'Everyone'],
+            ]}
+          />
+        }
       />
       <form
         className="mb-4 flex flex-wrap gap-2"
         onSubmit={(e) => {
           e.preventDefault()
           if (!text.trim()) return
-          save('tasks', { id: uid(), lead_id: null, kind: 'todo', owner: me.name, due_at: new Date(due).toISOString(), reason: text.trim(), done_at: null, created_by: me.name, created_at: new Date().toISOString() })
+          save('tasks', {
+            id: uid(),
+            lead_id: null,
+            kind: 'todo',
+            owner: me.name,
+            due_at: new Date(due).toISOString(),
+            reason: text.trim(),
+            done_at: null,
+            created_by: me.name,
+            created_at: new Date().toISOString(),
+          })
           setText('')
         }}
       >
@@ -54,7 +74,11 @@ export function Tasks({ openContact, callNow }: { openContact(id: string): void;
           items={[
             { key: 'overdue', label: 'Overdue', count: groups.overdue.length },
             { key: 'today', label: 'Later today', count: groups.today.length },
-            { key: 'upcoming', label: 'Upcoming', count: groups.upcoming.length },
+            {
+              key: 'upcoming',
+              label: 'Upcoming',
+              count: groups.upcoming.length,
+            },
             { key: 'done', label: 'Done', count: groups.done.length },
           ]}
         />
@@ -77,17 +101,30 @@ export function Tasks({ openContact, callNow }: { openContact(id: string): void;
                   >
                     {t.done_at && <Icon name="check" className="h-3 w-3" />}
                   </button>
-                  {l ? <Avatar name={l.company} /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-wash text-ink-400 ring-1 ring-inset ring-line"><Icon name="task" className="h-3.5 w-3.5" /></span>}
+                  {l ? (
+                    <Avatar name={l.company} />
+                  ) : (
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-wash text-ink-400 ring-1 ring-inset ring-line">
+                      <Icon name="task" className="h-3.5 w-3.5" />
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
-                    <button onClick={() => l && openContact(l.id)} className={`block truncate text-left text-sm font-medium ${t.done_at ? 'text-ink-400 line-through' : 'text-ink-900'}`}>
+                    <button
+                      onClick={() => l && openContact(l.id)}
+                      className={`block truncate text-left text-sm font-medium ${t.done_at ? 'text-ink-400 line-through' : 'text-ink-900'}`}
+                    >
                       {l ? l.company : t.reason}
                     </button>
                     <div className="truncate text-xs text-ink-500">
                       {l ? `${t.reason} · ${prettyPhone(l.phone)}` : t.kind === 'todo' ? 'To-do' : ''} · {t.owner}
                     </div>
                   </div>
-                  <Badge tone={t.kind === 'callback' ? 'sand' : t.kind === 'follow_up' ? 'mist' : 'stone'}>{t.kind === 'callback' ? 'Callback' : t.kind === 'follow_up' ? 'Follow-up' : 'To-do'}</Badge>
-                  <span className={`w-28 text-right text-xs ${late ? 'font-semibold text-clay-600' : 'text-ink-500'}`}>{t.done_at ? `done ${ago(t.done_at)}` : when(t.due_at)}</span>
+                  <Badge tone={t.kind === 'callback' ? 'sand' : t.kind === 'follow_up' ? 'mist' : 'stone'}>
+                    {t.kind === 'callback' ? 'Callback' : t.kind === 'follow_up' ? 'Follow-up' : 'To-do'}
+                  </Badge>
+                  <span className={`w-28 text-right text-xs ${late ? 'font-semibold text-clay-600' : 'text-ink-500'}`}>
+                    {t.done_at ? `done ${ago(t.done_at)}` : when(t.due_at)}
+                  </span>
                   {!t.done_at && (
                     <div className="flex gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => rescheduleTask(t, new Date(Math.max(Date.now(), new Date(t.due_at).getTime()) + 3600e3).toISOString())}>

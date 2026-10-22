@@ -63,7 +63,8 @@ export function Inbox({ openContact }: { openContact(id: string): void }) {
   const t = threads.find((x) => x.lead_id === sel)
   const lead = sel ? leadById.get(sel) : undefined
   const pending = data.emails.filter((e) => e.lead_id === sel && e.status === 'draft')
-  const count = (f: Filter) => threads.filter((t) => (f === 'needs' ? t.needs : f === 'replies' ? t.replies : f === 'opened' ? t.opens > 0 && !t.replies : f === 'bounced' ? t.bounced : true)).length
+  const count = (f: Filter) =>
+    threads.filter((t) => (f === 'needs' ? t.needs : f === 'replies' ? t.replies : f === 'opened' ? t.opens > 0 && !t.replies : f === 'bounced' ? t.bounced : true)).length
 
   return (
     <div>
@@ -75,7 +76,11 @@ export function Inbox({ openContact }: { openContact(id: string): void }) {
           items={[
             { key: 'needs', label: 'Needs reply', count: count('needs') },
             { key: 'replies', label: 'All replies', count: count('replies') },
-            { key: 'opened', label: 'Opened, no reply', count: count('opened') },
+            {
+              key: 'opened',
+              label: 'Opened, no reply',
+              count: count('opened'),
+            },
             { key: 'sent', label: 'All', count: threads.length },
             { key: 'bounced', label: 'Bounced', count: count('bounced') },
           ]}
@@ -141,7 +146,10 @@ export function Inbox({ openContact }: { openContact(id: string): void }) {
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto bg-panel p-4">
                 {t.list.map((e) => (
-                  <div key={e.id} className={`max-w-[92%] rounded-xl p-3.5 text-sm shadow-card ${e.direction === 'in' ? 'bg-white' : 'ml-auto bg-white ring-1 ring-inset ring-accent-200/60'}`}>
+                  <div
+                    key={e.id}
+                    className={`max-w-[92%] rounded-xl p-3.5 text-sm shadow-card ${e.direction === 'in' ? 'bg-white' : 'ml-auto bg-white ring-1 ring-inset ring-accent-200/60'}`}
+                  >
                     <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs">
                       <span className="font-medium text-ink-900">{e.direction === 'in' ? fullName(lead) || lead.company : 'You'}</span>
                       <span className="text-ink-400">{when(e.sent_at || e.created_at)}</span>

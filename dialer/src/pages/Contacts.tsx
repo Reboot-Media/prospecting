@@ -1,5 +1,24 @@
 import { useMemo, useState } from 'react'
-import { Avatar, Badge, Button, Card, Empty, Field, Icon, Modal, PageHeader, PainBadge, SearchInput, Select, StatStrip, StatusBadge, Tabs, Td, Th, inputCls } from '../components/ui'
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Field,
+  Icon,
+  Modal,
+  PageHeader,
+  PainBadge,
+  SearchInput,
+  Select,
+  StatStrip,
+  StatusBadge,
+  Tabs,
+  Td,
+  Th,
+  inputCls,
+} from '../components/ui'
 import { PAIN_LABEL, SEGMENT_LABEL, STAGE_LABEL, STAGE_TONE, STATUS_LABEL } from '../lib/constants'
 import { ago, digits, e164, fullName, prettyPhone, uid } from '../lib/format'
 import { matchesList } from '../lib/metrics'
@@ -77,9 +96,17 @@ export function Contacts({ openContact }: { openContact(id: string): void }) {
       <div className="mb-5">
         <StatStrip
           items={[
-            { label: 'Total contacts', icon: 'users', value: data.leads.length },
+            {
+              label: 'Total contacts',
+              icon: 'users',
+              value: data.leads.length,
+            },
             { label: 'In the dial queue', icon: 'phone', value: count('dial') },
-            { label: 'In the pipeline', icon: 'kanban', value: count('pipeline') },
+            {
+              label: 'In the pipeline',
+              icon: 'kanban',
+              value: count('pipeline'),
+            },
             { label: 'Signed clients', icon: 'check', value: count('clients') },
           ]}
         />
@@ -103,7 +130,12 @@ export function Contacts({ openContact }: { openContact(id: string): void }) {
         <Select label="List" value={list} onChange={reset(setList)} options={[['', 'All lists'], ...data.lists.map((l) => [l.id, l.name] as [string, string])]} />
         <Select label="Status" value={status} onChange={reset(setStatus)} options={[['all', 'All statuses'], ...(Object.entries(STATUS_LABEL) as [string, string][])]} />
         <Select label="Pain" value={pain} onChange={reset(setPain)} options={[['all', 'All pains'], ...(Object.entries(PAIN_LABEL) as [string, string][])]} />
-        <Select label="Owner" value={owner} onChange={reset(setOwner)} options={[['all', 'All owners'], ['none', 'Unassigned'], ...callers.map((c) => [c, c] as [string, string])]} />
+        <Select
+          label="Owner"
+          value={owner}
+          onChange={reset(setOwner)}
+          options={[['all', 'All owners'], ['none', 'Unassigned'], ...callers.map((c) => [c, c] as [string, string])]}
+        />
       </div>
 
       {picked.size > 0 && (
@@ -122,7 +154,13 @@ export function Contacts({ openContact }: { openContact(id: string): void }) {
             Enroll
           </Button>
           {callers.map((c) => (
-            <Button key={c} size="sm" variant="ghost" className="text-white hover:bg-white/10" onClick={() => Promise.all([...picked].map((id) => updateLead(id, { owner: c }))).then(() => setPicked(new Set()))}>
+            <Button
+              key={c}
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-white/10"
+              onClick={() => Promise.all([...picked].map((id) => updateLead(id, { owner: c }))).then(() => setPicked(new Set()))}
+            >
               Give to {c}
             </Button>
           ))}
@@ -142,7 +180,12 @@ export function Contacts({ openContact }: { openContact(id: string): void }) {
                 <thead className="border-b border-line bg-panel">
                   <tr>
                     <Th className="w-8 pr-0">
-                      <input type="checkbox" aria-label="Select page" checked={allOn} onChange={() => setPicked((s) => (allOn ? new Set([...s].filter((x) => !view.some((l) => l.id === x))) : new Set([...s, ...view.map((l) => l.id)])))} />
+                      <input
+                        type="checkbox"
+                        aria-label="Select page"
+                        checked={allOn}
+                        onChange={() => setPicked((s) => (allOn ? new Set([...s].filter((x) => !view.some((l) => l.id === x))) : new Set([...s, ...view.map((l) => l.id)])))}
+                      />
                     </Th>
                     <Th>Company</Th>
                     <Th>Phone</Th>
@@ -246,7 +289,18 @@ function tabOkFor(t: string, l: Lead) {
 
 function NewContact({ open, onClose, onMade }: { open: boolean; onClose(): void; onMade(id: string): void }) {
   const { me, data, importLeads } = useData()
-  const blank = { company: '', first_name: '', last_name: '', phone: '', email: '', city: '', state: 'TX', website: '', pain: 'unknown', segment: 'growing' }
+  const blank = {
+    company: '',
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    city: '',
+    state: 'TX',
+    website: '',
+    pain: 'unknown',
+    segment: 'growing',
+  }
   const [f, setF] = useState(blank)
   const set = (k: keyof typeof blank) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }))
   const dupe = data.leads.find((l) => (f.phone && l.phone === e164(f.phone)) || (f.email && l.email.toLowerCase() === f.email.toLowerCase()))
