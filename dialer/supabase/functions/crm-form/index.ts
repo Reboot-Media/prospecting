@@ -1,7 +1,7 @@
 // crm-form: rebootmedia.us form fills. The site's /api/lead handler posts the same
 // JSON it sends to GHL today, with header x-form-secret: <FORM_SECRET>.
 // New roofers become contacts; known ones get the fill on their timeline.
-import { db, json } from '../_shared/common.ts'
+import { checkHeader, db, json } from '../_shared/common.ts'
 
 const FORMS = ['visibility-check', 'grow', 'scale', 'commercial']
 
@@ -14,7 +14,7 @@ function e164(p: string) {
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ ok: true })
-  if (req.headers.get('x-form-secret') !== Deno.env.get('FORM_SECRET')) return json({ error: 'unauthorized' }, 401)
+  if (!(await checkHeader(req, 'x-form-secret', 'FORM_SECRET'))) return json({ error: 'unauthorized' }, 401)
   const f = (await req.json().catch(() => ({}))) as Record<string, string>
   const page = String(f.page || '')
   const form = FORMS.find((x) => page.includes(x) || f.stage === x.replace('-', '_') || f.form === x) || 'grow'

@@ -167,14 +167,36 @@ create table if not exists public.crm_settings (
   value jsonb not null default '{}'
 );
 
--- Access: the team (any signed-in user) sees and edits everything.
+-- Access: only emails on the team list (K and Ali) see and edit anything, even if
+-- someone else manages to sign up to this shared project.
+create table if not exists public.crm_team (
+  email text primary key,
+  name text not null
+);
+insert into public.crm_team (email, name) values
+  ('k.reid@rebootmedia.us', 'K'),
+  ('s.kazmi@rebootmedia.us', 'Ali')
+on conflict (email) do nothing;
+alter table public.crm_team enable row level security;
+
+create or replace function public.crm_is_team() returns boolean
+language sql stable security definer set search_path = public as $f$
+  select exists (select 1 from public.crm_team where email = lower(auth.jwt() ->> 'email'))
+$f$;
+revoke all on function public.crm_is_team() from public;
+grant execute on function public.crm_is_team() to authenticated;
+
+drop policy if exists "team reads team" on public.crm_team;
+create policy "team reads team" on public.crm_team for select to authenticated using (public.crm_is_team());
+
+-- The team sees and edits everything.
 do $$
 declare t text;
 begin
   foreach t in array array['crm_leads','crm_activities','crm_tasks','crm_meetings','crm_sequences','crm_lists','crm_campaigns','crm_emails','crm_email_events','crm_templates','crm_forms','crm_settings'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "team full access" on public.%I', t);
-    execute format('create policy "team full access" on public.%I for all to authenticated using (true) with check (true)', t);
+    execute format('create policy "team full access" on public.%I for all to authenticated using (public.crm_is_team()) with check (public.crm_is_team())', t);
   end loop;
 end $$;
 
@@ -188,3 +210,12 @@ begin
     end if;
   end loop;
 end $$;
+
+-- Function secrets kept in the vault (crm_cron_secret, crm_form_secret). Only the
+-- service role (the edge functions) can read them.
+create or replace function public.crm_secret(n text) returns text
+language sql stable security definer set search_path = public, vault as $f$
+  select decrypted_secret from vault.decrypted_secrets where name = n and n like 'crm\_%'
+$f$;
+revoke all on function public.crm_secret(text) from public, anon, authenticated;
+grant execute on function public.crm_secret(text) to service_role;

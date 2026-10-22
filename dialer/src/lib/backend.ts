@@ -159,10 +159,13 @@ async function fetchAll<T>(sb: SupabaseClient, table: string, build: (q: any) =>
   return out
 }
 
+// Names the app uses for owners and callers, keyed by login email.
+const TEAM_NAMES: Record<string, string> = { 'k.reid@rebootmedia.us': 'K', 's.kazmi@rebootmedia.us': 'Ali' }
+
 function liveBackend(url: string, key: string): Backend {
   const sb = createClient(url, key, { auth: { persistSession: true } })
   const toSession = (u: any): Session | null =>
-    u ? { name: (u.user_metadata?.name as string) || String(u.email).split('@')[0], email: u.email } : null
+    u ? { name: (u.user_metadata?.name as string) || TEAM_NAMES[String(u.email).toLowerCase()] || String(u.email).split('@')[0], email: u.email } : null
   const check = (r: { error: any }) => {
     if (r.error) throw r.error
   }

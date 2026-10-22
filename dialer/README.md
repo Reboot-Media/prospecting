@@ -42,10 +42,10 @@ npm run dev        # http://localhost:5174
 
 With no `.env`, it runs in **demo mode**: fictional roofers (555 numbers, example.com emails), data kept in the browser. Open two windows to see K and Ali stay in sync.
 
-## Go live
+## Live setup (done 2026-10-22 unless noted)
 
-1. Supabase → run `supabase/schema.sql`. Turn **off** public sign-ups; add users for K and Ali with metadata `{"name": "K"}` / `{"name": "Ali"}`.
-2. Resend: verify `rebootmedia.us` (DKIM + a `send.` subdomain for bounces; the root MX is not touched) and turn on open and click tracking. Add a receiving subdomain for replies (e.g. `reply.rebootmedia.us`). Webhook → `…/functions/v1/crm-webhook` for opened, clicked, bounced, complained, received.
-3. Deploy the three functions (`crm-webhook` and `crm-form` with JWT check off; they check their own secrets). Function secrets: `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `CRON_SECRET`, `FORM_SECRET`, `REPLY_TO`, `FORWARD_TO`. Then run `supabase/cron.sql`.
-4. Cloudflare Pages: root `dialer`, build `npm run build`, output `dist`, env `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (public key only).
-5. Import the GHL export, run both side by side for a week, then cancel GHL.
+- **Database**: Reboot's Supabase project `ops` (fqlgfmuiedrdowxnvcjv). `supabase/schema.sql` applied. Only emails in `crm_team` (K, Ali) can read or write anything, even if someone else signs up.
+- **Functions**: `crm-send`, `crm-webhook`, `crm-form` deployed. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
+- **Front end**: `.env.production` holds the public URL and publishable key. Build `npm run build`, output `dist`, host on Cloudflare Pages.
+- **Waiting on K**: logins for K and Ali (Supabase → Authentication → Add user); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
+- **Later**: point the website's `/api/lead` at `crm-form`, import the GHL export, run both side by side for a week, then cancel GHL.

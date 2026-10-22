@@ -4,6 +4,22 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 export const db = () =>
   createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
 
+// Secrets: function env first, then the database vault (crm_cron_secret,
+// crm_form_secret), which only the service role can read. Empty means locked.
+const cache: Record<string, string> = {}
+export async function secret(name: string) {
+  const env = Deno.env.get(name)
+  if (env) return env
+  if (name in cache) return cache[name]
+  const { data } = await db().rpc('crm_secret', { n: `crm_${name.toLowerCase()}` })
+  return (cache[name] = typeof data === 'string' ? data : '')
+}
+
+export async function checkHeader(req: Request, header: string, name: string) {
+  const want = await secret(name)
+  return !!want && req.headers.get(header) === want
+}
+
 export const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...extra } })
 
