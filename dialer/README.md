@@ -15,6 +15,7 @@ The CRM K and Ali run Reboot sales on, built to replace GHL. It started as a dia
 - **Tasks**: callbacks, follow-ups and to-dos with overdue / today / upcoming / done.
 
 **Outreach**
+- **Workflows**: your own automations, built by drag and drop like GHL's. Pick a trigger (call outcome, booking, no-show, showed, tag, stage, form fill, email open/click/reply/bounce, missed call, or add contacts by hand), then stack steps: email, text, task, notify, tag, change a field, start or stop a sequence, webhook, wait (any time, business hours or the email window), wait for a reply/booking/click, and if/else splits. Ten ready-made ones ship as starting points (speed to lead, booked call YES, no-show recovery, replied, clicked, missed call, three voicemails, gatekeeper, not interested in 90 days, proposal follow-up). Each workflow shows who is in it, where they are, and the log for each person; skip a wait or stop someone by hand.
 - **Sequences**: one cold email lane per pain (never ran ads, ads stopped, ads running, plus shark). Per-step open, click, reply and bounce rates. Daily cap shared by first emails and follow-ups. A reply stops the sequence for that roofer.
 - **Campaigns**: branded blasts to a list with an A/B split judged by replies and bookings.
 - **Approvals**: nothing sends without K's OK. Every draft (sequence, campaign, reply, one-off) waits here.
@@ -34,6 +35,12 @@ Sending goes through **Resend** (K's pick, 2026-10-22). Free tier: 100 a day, 3,
 
 Opens are a soft signal (Apple Mail opens everything). Clicks, replies and bookings are the numbers to trust.
 
+## How workflows run
+
+- Database triggers write every change a workflow can start on (calls, bookings, tags, stages, form fills, email events, missed calls) into `crm_flow_events`.
+- `supabase/functions/crm-flow` runs every minute (pg_cron). It starts matching workflows, resumes people waiting for an event, stops runs on a reply when the workflow says so, and moves everyone whose wait is over. The step logic lives in `src/lib/flow.ts`, shared with the demo.
+- Workflow emails land in Approvals unless the step is set to send on its own; either way `crm-send` sends them through Resend inside the weekday window and under the daily cap, with Ali CC'd. Text steps become a task until a carrier is on.
+
 ## How phone tracking works
 
 - Every call from the CRM (Dial screen, contact page, Calls page) creates a call record the moment you press Call, and the outcome you log is attached to it. Settings → Phone picks how calls go out: **My phone** (opens your cell's dialer; the length is what you time in the call bar) or **Browser** (calls through the carrier from the laptop, recorded).
@@ -52,7 +59,7 @@ With no `.env`, it runs in **demo mode**: fictional roofers (555 numbers, exampl
 ## Live setup (done 2026-10-22 unless noted)
 
 - **Database**: Reboot's Supabase project `ops` (fqlgfmuiedrdowxnvcjv). `supabase/schema.sql` applied. Only emails in `crm_team` (K, Ali) can read or write anything, even if someone else signs up.
-- **Functions**: `crm-send`, `crm-webhook`, `crm-form`, `crm-voice` deployed. Phone tables `crm_calls` and `crm_numbers` applied. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
-- **Front end**: `.env.production` holds the public URL and publishable key. Build `npm run build`, output `dist`, host on Cloudflare Pages.
+- **Functions**: `crm-send`, `crm-webhook`, `crm-form`, `crm-voice`, `crm-flow` deployed. Workflow tables and triggers applied. Phone tables `crm_calls` and `crm_numbers` applied. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
+- **Front end**: `.env.production` holds the public URL and publishable key. Build `npm run build`, output `dist`, host on Cloudflare Pages (project `reboot-crm`). Address: `crm.rebootmedia.us` (custom domain on the Pages project; only that subdomain, root email records untouched).
 - **Waiting on K**: phone carrier pick and Twilio secrets (see phone tracking above); logins for K and Ali (Supabase → Authentication → Add user); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
 - **Later**: point the website's `/api/lead` at `crm-form`, import the GHL export, run both side by side for a week, then cancel GHL.

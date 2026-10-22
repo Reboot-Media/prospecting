@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Activity, Call, Campaign, Email, EmailEvent, FormSubmission, Lead, Meeting, PhoneNumber, Sequence, Settings, SmartList, Task, Template } from './types'
+import type { Activity, Call, Campaign, Email, EmailEvent, FlowRun, FormSubmission, Lead, Meeting, PhoneNumber, Sequence, Settings, SmartList, Task, Template, Workflow } from './types'
 import { DEFAULT_SETTINGS } from './constants'
 import { demoData } from './demo'
 
@@ -19,9 +19,11 @@ export interface Rows {
   forms: FormSubmission
   calls: Call
   numbers: PhoneNumber
+  workflows: Workflow
+  flow_runs: FlowRun
 }
 export type Table = keyof Rows
-export const TABLES: Table[] = ['leads', 'activities', 'tasks', 'meetings', 'emails', 'email_events', 'sequences', 'campaigns', 'lists', 'templates', 'forms', 'calls', 'numbers']
+export const TABLES: Table[] = ['leads', 'activities', 'tasks', 'meetings', 'emails', 'email_events', 'sequences', 'campaigns', 'lists', 'templates', 'forms', 'calls', 'numbers', 'workflows', 'flow_runs']
 
 export type Change = {
   [K in Table]: { table: K; row: Rows[K]; deleted?: boolean }
@@ -56,7 +58,7 @@ export interface Backend {
 // Demo mode keeps everything in this browser. Tabs stay in sync through a
 // BroadcastChannel so two windows behave like K and Ali side by side.
 
-const KEY = 'reboot-crm:demo:v3'
+const KEY = 'reboot-crm:demo:v4'
 const SESSION_KEY = 'reboot-crm:demo:session'
 
 function readDemo(): Snapshot {
@@ -218,7 +220,7 @@ function liveBackend(url: string, key: string): Backend {
     async load() {
       // Recent history only for the busy tables; everything else in full.
       const since = new Date(Date.now() - 90 * 864e5).toISOString()
-      const recent = new Set<Table>(['activities', 'email_events', 'calls'])
+      const recent = new Set<Table>(['activities', 'email_events', 'calls', 'flow_runs'])
       const results = await Promise.all(TABLES.map((t) => fetchAll(sb, live(t), (q) => (recent.has(t) ? q.gte('created_at', since).order('created_at') : q.order('created_at')))))
       const settingsRow = await sb.from('crm_settings').select('value').eq('id', 1).maybeSingle()
       const snap = Object.fromEntries(TABLES.map((t, i) => [t, results[i]])) as unknown as Snapshot

@@ -260,6 +260,117 @@ begin
   end loop;
 end $$;
 
+-- Workflows: a trigger plus a tree of steps (built in the app), one run per
+-- contact going through it, and the events that start or resume runs.
+create table if not exists public.crm_workflows (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'New workflow',
+  description text not null default '',
+  status text not null default 'draft' check (status in ('active','draft','paused')),
+  trigger jsonb not null default '{"type":"manual","value":"","conditions":[]}',
+  steps jsonb not null default '[]',
+  reentry boolean not null default false,
+  stop_on_reply boolean not null default true,
+  created_by text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_flow_runs (
+  id uuid primary key default gen_random_uuid(),
+  workflow_id uuid not null references public.crm_workflows(id) on delete cascade,
+  lead_id uuid not null references public.crm_leads(id) on delete cascade,
+  status text not null default 'active' check (status in ('active','waiting','done','stopped','failed')),
+  cursor text,
+  wake_at timestamptz,
+  waiting_for text,
+  log jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists crm_flow_runs_due_idx on public.crm_flow_runs (wake_at) where status in ('active','waiting');
+create index if not exists crm_flow_runs_lead_idx on public.crm_flow_runs (lead_id, workflow_id);
+
+-- Filled by the triggers below; only the crm-flow function reads it.
+create table if not exists public.crm_flow_events (
+  id bigserial primary key,
+  type text not null,
+  value text not null default '',
+  lead_id uuid not null,
+  created_at timestamptz not null default now(),
+  processed_at timestamptz
+);
+create index if not exists crm_flow_events_todo_idx on public.crm_flow_events (id) where processed_at is null;
+alter table public.crm_flow_events enable row level security;
+
+create or replace function public.crm_flow_capture() returns trigger
+language plpgsql security definer set search_path = public as $f$
+begin
+  if TG_TABLE_NAME = 'crm_activities' then
+    if new.outcome in ('no_answer','voicemail','gatekeeper','callback','booked','confirmed','not_interested','bad_number','dnc') then
+      insert into crm_flow_events (type, value, lead_id) values ('call_outcome', new.outcome, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_leads' then
+    if TG_OP = 'INSERT' then
+      insert into crm_flow_events (type, value, lead_id) values ('contact_created', new.source, new.id);
+      insert into crm_flow_events (type, value, lead_id) select 'tag_added', x, new.id from unnest(new.tags) x;
+    else
+      insert into crm_flow_events (type, value, lead_id) select 'tag_added', x, new.id from unnest(new.tags) x where not (x = any(old.tags));
+      insert into crm_flow_events (type, value, lead_id) select 'tag_removed', x, new.id from unnest(old.tags) x where not (x = any(new.tags));
+      if new.stage is distinct from old.stage and new.stage is not null then
+        insert into crm_flow_events (type, value, lead_id) values ('stage_changed', new.stage, new.id);
+      end if;
+    end if;
+  elsif TG_TABLE_NAME = 'crm_meetings' then
+    if TG_OP = 'INSERT' then
+      insert into crm_flow_events (type, value, lead_id) values ('meeting_booked', new.source, new.lead_id);
+    elsif new.status is distinct from old.status then
+      insert into crm_flow_events (type, value, lead_id) values ('meeting_status', new.status, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_forms' then
+    if new.lead_id is not null then
+      insert into crm_flow_events (type, value, lead_id) values ('form_submitted', new.form, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_email_events' then
+    if new.type in ('open','click','reply','bounce') then
+      insert into crm_flow_events (type, value, lead_id)
+      values (case new.type when 'open' then 'email_opened' when 'click' then 'email_clicked' when 'reply' then 'email_replied' else 'email_bounced' end, new.url, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_calls' then
+    if new.lead_id is not null and new.direction = 'in' and new.status = 'missed' and (TG_OP = 'INSERT' or old.status is distinct from 'missed') then
+      insert into crm_flow_events (type, value, lead_id) values ('missed_call', new.source, new.lead_id);
+    end if;
+  end if;
+  return null;
+end $f$;
+revoke all on function public.crm_flow_capture() from public, anon, authenticated;
+
+drop trigger if exists crm_flow_activities on public.crm_activities;
+create trigger crm_flow_activities after insert on public.crm_activities for each row execute function public.crm_flow_capture();
+drop trigger if exists crm_flow_leads on public.crm_leads;
+create trigger crm_flow_leads after insert or update on public.crm_leads for each row execute function public.crm_flow_capture();
+drop trigger if exists crm_flow_meetings on public.crm_meetings;
+create trigger crm_flow_meetings after insert or update on public.crm_meetings for each row execute function public.crm_flow_capture();
+drop trigger if exists crm_flow_forms on public.crm_forms;
+create trigger crm_flow_forms after insert on public.crm_forms for each row execute function public.crm_flow_capture();
+drop trigger if exists crm_flow_email_events on public.crm_email_events;
+create trigger crm_flow_email_events after insert on public.crm_email_events for each row execute function public.crm_flow_capture();
+drop trigger if exists crm_flow_calls on public.crm_calls;
+create trigger crm_flow_calls after insert or update on public.crm_calls for each row execute function public.crm_flow_capture();
+
+do $$
+declare t text;
+begin
+  foreach t in array array['crm_workflows','crm_flow_runs'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "team full access" on public.%I', t);
+    execute format('create policy "team full access" on public.%I for all to authenticated using (public.crm_is_team()) with check (public.crm_is_team())', t);
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
 -- Function secrets kept in the vault (crm_cron_secret, crm_form_secret). Only the
 -- service role (the edge functions) can read them.
 create or replace function public.crm_secret(n text) returns text

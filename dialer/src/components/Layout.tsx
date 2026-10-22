@@ -54,7 +54,7 @@ export function Layout({
     )
   }
 
-  const active = route === 'contact' ? 'contacts' : route
+  const active = route === 'contact' ? 'contacts' : route === 'workflow' ? 'workflows' : route
 
   const sidebar = (
     <div className="flex h-full flex-col">

@@ -3,6 +3,7 @@ import { backend, type Change, type Rows, type Session, type Snapshot, type Tabl
 import type { Activity, Call, CallStatus, Email, EmailEvent, Lead, Meeting, MeetingStatus, Outcome, Settings, Stage, Task } from './types'
 import { OUTCOMES } from './constants'
 import { uid } from './format'
+import { advance, eventsFromChange, isDue, resumeOnEvent, startRun, stopRun, triggerLabel, triggerMatches, type Effect, type FlowCtx, type FlowEvent, type FlowRun, type Workflow } from './flow'
 
 export interface OutcomeExtra {
   note?: string
@@ -38,6 +39,10 @@ interface Ctx {
   startCall(lead: Lead, via: Call['via']): Promise<Call>
   endCall(id: string, connectedSec: number): Promise<void>
   contactFromCall(call: Call): Promise<string>
+  // Workflows: enroll by hand, stop a run, or skip a wait (handy for testing).
+  enrollWorkflow(leadIds: string[], workflowId: string): Promise<number>
+  stopRuns(ids: string[]): Promise<void>
+  skipWait(id: string): Promise<void>
 }
 
 // What a call's status should read once its outcome is known.
@@ -108,15 +113,31 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     }
   }, [])
 
+  // In demo mode the workflow engine runs here, on the events each change makes.
+  // Live mode leaves that to the crm-flow function, which the database feeds.
+  const flowsRef = useRef<(events: FlowEvent[], depth: number) => Promise<void>>(async () => {})
+
   const commit = useCallback(
-    (inserts: Change[], updates: Change[]) =>
-      run([...inserts, ...updates], async () => {
+    async (inserts: Change[], updates: Change[], depth = 0) => {
+      const before = ref.current
+      const events: FlowEvent[] = []
+      if (backend.mode === 'demo' && before) {
+        const t = now()
+        for (const c of [...inserts, ...updates]) {
+          if (c.deleted || c.table === 'flow_runs' || c.table === 'workflows') continue
+          const prev = ((before[c.table] as { id: string }[]) || []).find((x) => x.id === c.row.id) || null
+          events.push(...eventsFromChange(c.table, prev as any, prev ? { ...prev, ...c.row } : (c.row as any), t))
+        }
+      }
+      await run([...inserts, ...updates], async () => {
         for (const c of inserts) await backend.insert(c.table, [c.row as any])
         for (const c of updates) {
           if (c.deleted) await backend.remove(c.table, c.row.id)
           else await backend.update(c.table, c.row.id, c.row as any)
         }
-      }),
+      })
+      if (events.length) await flowsRef.current(events, depth)
+    },
     [run],
   )
 
@@ -546,6 +567,179 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     [me.name, commit],
   )
 
+  /* workflows ----------------------------------------------------------- */
+
+  const flowCtx = (lead: Lead): FlowCtx => {
+    const d = ref.current!
+    const t = now()
+    const mine = d.emails.filter((e) => e.lead_id === lead.id)
+    return {
+      lead,
+      now: new Date(),
+      opened: mine.some((e) => e.opens > 0),
+      clicked: mine.some((e) => e.clicks > 0),
+      replied: mine.some((e) => !!e.replied_at || e.direction === 'in'),
+      meeting_upcoming: d.meetings.some((m) => m.lead_id === lead.id && m.starts_at > t && m.status !== 'canceled' && m.status !== 'no_show'),
+      booking_link: d.settings.booking_link,
+      callers: d.settings.callers,
+    }
+  }
+
+  // Turn what a step decided into rows.
+  const effectChanges = (lead: Lead, wf: Workflow, effects: Effect[]): { inserts: Change[]; lead: Lead } => {
+    const d = ref.current!
+    const t = now()
+    const inserts: Change[] = []
+    let l = lead
+    for (const e of effects) {
+      if (e.kind === 'email') {
+        const sent = e.status === 'approved'
+        const row: Email = {
+          id: uid(),
+          lead_id: lead.id,
+          direction: 'out',
+          from_addr: d.settings.sender,
+          to_addr: lead.email,
+          cc: d.settings.cc,
+          subject: e.subject,
+          body: e.body,
+          branded: e.branded,
+          status: sent ? 'sent' : 'draft',
+          sequence_id: null,
+          step: null,
+          campaign_id: null,
+          variant: null,
+          sent_at: sent ? t : null,
+          opens: 0,
+          clicks: 0,
+          first_open_at: null,
+          last_open_at: null,
+          replied_at: null,
+          created_by: `Workflow: ${wf.name}`,
+          created_at: t,
+        }
+        inserts.push({ table: 'emails', row })
+      } else if (e.kind === 'task') {
+        inserts.push({
+          table: 'tasks',
+          row: { id: uid(), lead_id: lead.id, kind: e.task_kind, owner: e.owner, due_at: e.due_at, reason: e.reason, done_at: null, created_by: `Workflow: ${wf.name}`, created_at: t },
+        })
+      } else if (e.kind === 'lead') {
+        l = { ...l, ...(e.patch as Partial<Lead>), updated_at: t }
+      } else if (e.kind === 'sequence') {
+        if (e.mode === 'stop') l = { ...l, sequence_state: l.sequence_state === 'active' ? 'paused' : l.sequence_state }
+        else {
+          const seq = d.sequences.find((x) => x.id === e.sequence_id) || d.sequences.find((x) => x.lane === l.pain && x.status === 'active')
+          if (seq && l.email && l.email_status === 'ok') l = { ...l, sequence_id: seq.id, sequence_step: 0, sequence_state: 'active' }
+        }
+      }
+    }
+    return { inserts, lead: l }
+  }
+
+  const stepRuns = async (todo: { run: FlowRun; wf: Workflow }[], fresh: Set<string>, depth: number) => {
+    const d = ref.current!
+    const leads = new Map<string, Lead>()
+    const inserts: Change[] = []
+    const updates: Change[] = []
+    for (const { run, wf } of todo) {
+      const lead = leads.get(run.lead_id) || d.leads.find((x) => x.id === run.lead_id)
+      if (!lead) continue
+      const out = advance(run, wf, { ...flowCtx(lead), lead })
+      const res = effectChanges(lead, wf, out.effects)
+      inserts.push(...res.inserts)
+      if (res.lead !== lead) leads.set(lead.id, res.lead)
+      ;(fresh.has(run.id) ? inserts : updates).push({ table: 'flow_runs', row: out.run })
+    }
+    for (const l of leads.values()) updates.push({ table: 'leads', row: l })
+    if (inserts.length || updates.length) await commit(inserts, updates, depth + 1)
+  }
+
+  flowsRef.current = async (events, depth) => {
+    const d = ref.current
+    if (!d || backend.mode !== 'demo' || depth > 4) return
+    const wfs = new Map(d.workflows.map((w) => [w.id, w]))
+    const todo: { run: FlowRun; wf: Workflow }[] = []
+    const stops: Change[] = []
+    const fresh = new Set<string>()
+    for (const ev of events) {
+      const lead = d.leads.find((l) => l.id === ev.lead_id)
+      if (!lead) continue
+      const runs = d.flow_runs.filter((r) => r.lead_id === lead.id && (r.status === 'active' || r.status === 'waiting'))
+      for (const r of runs) {
+        const wf = wfs.get(r.workflow_id)
+        if (!wf) continue
+        const resumed = resumeOnEvent(r, wf, ev)
+        if (resumed) todo.push({ run: resumed, wf })
+        else if (ev.type === 'email_replied' && wf.stop_on_reply) stops.push({ table: 'flow_runs', row: stopRun(r, ev.at, 'Stopped: they replied') })
+      }
+      const ctx = flowCtx(lead)
+      for (const wf of d.workflows) {
+        if (!triggerMatches(wf, ev, ctx)) continue
+        const prior = d.flow_runs.filter((r) => r.workflow_id === wf.id && r.lead_id === lead.id)
+        if (!wf.reentry && prior.length) continue
+        if (prior.some((r) => r.status === 'active' || r.status === 'waiting')) continue
+        if (todo.some((x) => x.wf.id === wf.id && x.run.lead_id === lead.id)) continue
+        const r = startRun(wf, lead.id, new Date(), uid(), `Triggered: ${triggerLabel(ev.type)}${ev.value ? ` · ${ev.value.replace(/_/g, ' ')}` : ''}`)
+        fresh.add(r.id)
+        todo.push({ run: r, wf })
+      }
+    }
+    if (stops.length) await commit([], stops, depth + 1)
+    if (todo.length) await stepRuns(todo, fresh, depth)
+  }
+
+  // Demo: wake waiting runs whose time has come.
+  useEffect(() => {
+    if (backend.mode !== 'demo') return
+    const tick = () => {
+      const d = ref.current
+      if (!d) return
+      const n = new Date()
+      const due = d.flow_runs
+        .filter((r) => r.status === 'waiting' && isDue(r, n))
+        .map((run) => ({ run, wf: d.workflows.find((w) => w.id === run.workflow_id)! }))
+        .filter((x) => x.wf && x.wf.status === 'active')
+      if (due.length) stepRuns(due, new Set(), 0)
+    }
+    const i = setInterval(tick, 15000)
+    return () => clearInterval(i)
+  }, [])
+
+  const enrollWorkflow = useCallback<Ctx['enrollWorkflow']>(async (leadIds, workflowId) => {
+    const d = ref.current!
+    const wf = d.workflows.find((w) => w.id === workflowId)
+    if (!wf) return 0
+    const busy = new Set(d.flow_runs.filter((r) => r.workflow_id === wf.id && (r.status === 'active' || r.status === 'waiting')).map((r) => r.lead_id))
+    const runs = leadIds.filter((id) => !busy.has(id)).map((id) => startRun(wf, id, new Date(), uid(), `Added by ${me.name}`))
+    if (!runs.length) return 0
+    if (backend.mode === 'demo')
+      await stepRuns(
+        runs.map((run) => ({ run, wf })),
+        new Set(runs.map((r) => r.id)),
+        0,
+      )
+    else await commit(runs.map((row) => ({ table: 'flow_runs' as const, row })), [])
+    return runs.length
+  }, [me.name])
+
+  const stopRuns = useCallback<Ctx['stopRuns']>(async (ids) => {
+    const t = now()
+    const list = (ref.current?.flow_runs || []).filter((r) => ids.includes(r.id) && (r.status === 'active' || r.status === 'waiting'))
+    await commit([], list.map((r) => ({ table: 'flow_runs' as const, row: stopRun(r, t, `Stopped by ${me.name}`) })))
+  }, [me.name, commit])
+
+  const skipWait = useCallback<Ctx['skipWait']>(async (id) => {
+    const r = ref.current?.flow_runs.find((x) => x.id === id)
+    if (!r || r.status !== 'waiting') return
+    const t = now()
+    const row = { ...r, wake_at: t, log: [...r.log, { at: t, step: r.cursor || '', text: `Wait skipped by ${me.name}` }] }
+    if (backend.mode === 'demo') {
+      const wf = ref.current!.workflows.find((w) => w.id === r.workflow_id)
+      if (wf) await stepRuns([{ run: row, wf }], new Set(), 0)
+    } else await commit([], [{ table: 'flow_runs', row }])
+  }, [me.name, commit])
+
   const signOut = useCallback(async () => {
     await backend.signOut()
     onSignOut()
@@ -586,6 +780,9 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
     startCall,
     endCall,
     contactFromCall,
+    enrollWorkflow,
+    stopRuns,
+    skipWait,
   }
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>
 }

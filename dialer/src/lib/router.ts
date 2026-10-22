@@ -11,6 +11,8 @@ export type Route =
   | 'calendar'
   | 'tasks'
   | 'sequences'
+  | 'workflows'
+  | 'workflow'
   | 'campaigns'
   | 'approvals'
   | 'templates'
@@ -50,6 +52,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Outreach',
     items: [
+      { key: 'workflows', label: 'Workflows', icon: 'bolt' },
       { key: 'sequences', label: 'Sequences', icon: 'flow' },
       { key: 'campaigns', label: 'Campaigns', icon: 'send' },
       { key: 'approvals', label: 'Approvals', icon: 'approve' },
@@ -73,10 +76,11 @@ export const NAV: { section: string; items: NavItem[] }[] = [
   },
 ]
 
-export const ALL_ROUTES: Route[] = [...NAV.flatMap((s) => s.items.map((i) => i.key)), 'contact']
+export const ALL_ROUTES: Route[] = [...NAV.flatMap((s) => s.items.map((i) => i.key)), 'contact', 'workflow']
 
 export function sectionOf(r: Route): { section: string; label: string } {
   if (r === 'contact') return { section: 'Workspace', label: 'Contacts' }
+  if (r === 'workflow') return { section: 'Outreach', label: 'Workflows' }
   for (const s of NAV) for (const i of s.items) if (i.key === r) return { section: s.section, label: i.label }
   return { section: 'Workspace', label: 'Home' }
 }

@@ -1,3 +1,5 @@
+import { advance, isDue, startRun, triggerLabel, type FlowRun, type Workflow } from './flow'
+import { recipes } from './recipes'
 import type {
   Activity,
   Call,
@@ -760,7 +762,38 @@ export function demoData() {
     })
   }
 
+  /* workflows ---------------------------------------------------------- */
+  const workflows: Workflow[] = recipes(id).map((w, i) => ({
+    ...w,
+    id: id(),
+    status: i < 7 ? 'active' : 'draft',
+    created_by: 'K',
+    created_at: iso(now - (12 - i) * D),
+    updated_at: iso(now - 2 * D),
+  }))
+  // Replay a few contacts through each live workflow so the history has depth.
+  const flow_runs: FlowRun[] = []
+  for (const w of workflows.filter((x) => x.status === 'active')) {
+    const n = 3 + Math.floor(r() * 6)
+    for (let k = 0; k < n; k++) {
+      const lead = leads[Math.floor(r() * leads.length)]
+      const startMs = now - Math.floor(r() * 9 * D) - H
+      const base = { lead, opened: r() < 0.5, clicked: r() < 0.2, replied: r() < 0.15, meeting_upcoming: r() < 0.3, booking_link: 'https://calendly.com/hello-rebootmedia/strategycall', callers: ['K', 'Ali'] }
+      let run = startRun(w, lead.id, new Date(startMs), id(), `Triggered: ${triggerLabel(w.trigger.type)}${w.trigger.value ? ` · ${w.trigger.value.replace(/_/g, ' ')}` : ''}`)
+      run = advance(run, w, { ...base, now: new Date(startMs) }).run
+      for (let g = 0; g < 4 && run.status === 'waiting' && run.wake_at && Date.parse(run.wake_at) < now; g++) {
+        const wake = new Date(run.wake_at)
+        if (!isDue(run, wake)) break
+        run = advance(run, w, { ...base, now: wake }).run
+      }
+      if (r() < 0.08 && run.status === 'waiting') run = { ...run, status: 'stopped', log: [...run.log, { at: iso(now - H), step: '', text: 'Stopped: replied' }] }
+      flow_runs.push(run)
+    }
+  }
+
   return {
+    workflows,
+    flow_runs,
     leads,
     activities,
     tasks,

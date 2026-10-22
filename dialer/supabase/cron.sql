@@ -20,3 +20,21 @@ select cron.schedule(
   );
   $$
 );
+
+-- Workflows: every minute, every day (waits can end on weekends; emails still
+-- only go out in the weekday window because crm-send sends them).
+select cron.unschedule('crm-flow') where exists (select 1 from cron.job where jobname = 'crm-flow');
+select cron.schedule(
+  'crm-flow',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://fqlgfmuiedrdowxnvcjv.supabase.co/functions/v1/crm-flow',
+    headers := jsonb_build_object(
+      'content-type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'crm_cron_secret')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);

@@ -13,6 +13,7 @@ import { Pipeline } from './pages/Pipeline'
 import { Calendar } from './pages/Calendar'
 import { Tasks } from './pages/Tasks'
 import { Sequences } from './pages/Sequences'
+import { WorkflowBuilder, Workflows } from './pages/Workflows'
 import { Campaigns } from './pages/Campaigns'
 import { Approvals } from './pages/Approvals'
 import { Templates } from './pages/Templates'
@@ -184,6 +185,8 @@ function Shell() {
       {r === 'pipeline' && <Pipeline openContact={openContact} />}
       {r === 'calendar' && <Calendar openContact={openContact} />}
       {r === 'tasks' && <Tasks openContact={openContact} callNow={callNow} />}
+      {r === 'workflows' && <Workflows open={(id) => go('workflow', id)} />}
+      {r === 'workflow' && <WorkflowBuilder id={loc.id} back={() => go('workflows')} openContact={openContact} />}
       {r === 'sequences' && <Sequences />}
       {r === 'campaigns' && <Campaigns />}
       {r === 'approvals' && <Approvals openContact={openContact} />}

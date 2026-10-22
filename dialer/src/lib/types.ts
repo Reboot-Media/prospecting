@@ -229,3 +229,5 @@ export interface Call {
   provider_id: string | null
   created_at: string
 }
+
+export type { Workflow, FlowRun, Step, Condition, TriggerType } from './flow'
