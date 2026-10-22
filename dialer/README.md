@@ -19,6 +19,7 @@ The CRM K and Ali run Reboot sales on, built to replace GHL. It started as a dia
 - **Sequences**: one cold email lane per pain (never ran ads, ads stopped, ads running, plus shark). Per-step open, click, reply and bounce rates. Daily cap shared by first emails and follow-ups. A reply stops the sequence for that roofer.
 - **Campaigns**: branded blasts to a list with an A/B split judged by replies and bookings.
 - **Approvals**: nothing sends without K's OK. Every draft (sequence, campaign, reply, one-off) waits here.
+- **Scripts**: Script M split into opener, gatekeeper, objections, pain lanes and the booking text. The one you pick shows beside every dial with the roofer's name, company and city filled in.
 - **Templates** and **Lists** (smart lists from tags, pain, segment, status).
 
 **Insight**: **Reports** with the calling funnel against the Jul–Oct baseline, dials per day, best hours to call, inbound calls by source, talk time per caller, email results by lane, call outcomes and callers.
@@ -35,6 +36,17 @@ Sending goes through **Resend** (K's pick, 2026-10-22). Free tier: 100 a day, 3,
 
 Opens are a soft signal (Apple Mail opens everything). Clicks, replies and bookings are the numbers to trust.
 
+## Roofer profile and buyer intent
+
+- Every contact shows Google rating and reviews, which ads lane they are in, and what their website runs: Google Tag Manager, GA4, Google Ads tag, Meta pixel, call tracking, chat, reviews widget, instant estimator, CRM. Missing tags turn into talking points.
+- `supabase/functions/crm-enrich` reads the website (and the GTM container) for 15 unchecked roofers every 15 minutes, or on "Check website". With a `GOOGLE_PLACES_KEY` secret it also fills rating and review count.
+- Buyer intent (0 to 100) adds up the last 14 days: rebootmedia.us visits (pricing, case studies, Visibility Check count extra), replies, clicks, opens, inbound calls, form fills, callbacks asked for and booked calls.
+- `supabase/functions/crm-track` takes page views from rebootmedia.us. `crm-send` adds `?rb=<contact id>` to rebootmedia.us links, and the site tag (Integrations → Setup details; one GTM Custom HTML tag) ties the visit to the roofer. Putting the tag on the site waits for K's go.
+
+## Meta lead ads
+
+`supabase/functions/crm-meta` is the webhook for Facebook and Instagram lead forms. Each lead becomes a contact (or matches one by email or phone), gets a "Meta lead ad" form fill and starts the "Meta lead: call in 5 minutes" workflow. Needs `META_VERIFY_TOKEN`, `META_APP_SECRET` and `META_PAGE_TOKEN` function secrets; refuses anything Meta did not sign.
+
 ## How workflows run
 
 - Database triggers write every change a workflow can start on (calls, bookings, tags, stages, form fills, email events, missed calls) into `crm_flow_events`.
@@ -46,6 +58,12 @@ Opens are a soft signal (Apple Mail opens everything). Clicks, replies and booki
 - Every call from the CRM (Dial screen, contact page, Calls page) creates a call record the moment you press Call, and the outcome you log is attached to it. Settings → Phone picks how calls go out: **My phone** (opens your cell's dialer; the length is what you time in the call bar) or **Browser** (calls through the carrier from the laptop, recorded).
 - `supabase/functions/crm-voice` (Twilio): browser calling tokens for K and Ali, recorded outbound calls with the real length, inbound calls to any tracking number logged with their source and rung through to the owner's browser and cell, missed calls turned into voicemail plus a callback task, and recordings streamed only to signed-in teammates.
 - Turn it on: buy numbers in Twilio, add them under Phone numbers, point each number's voice webhook at `.../functions/v1/crm-voice/inbound`, create a TwiML app pointing at `.../crm-voice/outbound`, and add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_TWIML_APP_SID` as Supabase function secrets. Until then the function answers 401/503 and everything else works with "My phone".
+
+Transcripts: recorded calls of 20 seconds or more (Settings) go to Gemini (`GEMINI_API_KEY` secret, `gemini-2.5-flash`, about $0.002 a minute). Each call gets a transcript with speakers, a two-line summary, pain, "why now", objections and the next step, shown under Call notes. Inbound callers hear "This call may be recorded" first (Settings).
+
+## Logging in
+
+K and Ali open the CRM, choose "First time? Set your password", and use their rebootmedia.us email. Only emails on the team list can create a login. "Forgot password" emails a reset link.
 
 ## Run it
 
@@ -59,7 +77,7 @@ With no `.env`, it runs in **demo mode**: fictional roofers (555 numbers, exampl
 ## Live setup (done 2026-10-22 unless noted)
 
 - **Database**: Reboot's Supabase project `ops` (fqlgfmuiedrdowxnvcjv). `supabase/schema.sql` applied. Only emails in `crm_team` (K, Ali) can read or write anything, even if someone else signs up.
-- **Functions**: `crm-send`, `crm-webhook`, `crm-form`, `crm-voice`, `crm-flow` deployed. Workflow tables and triggers applied. Phone tables `crm_calls` and `crm_numbers` applied. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
+- **Functions**: `crm-send`, `crm-webhook`, `crm-form`, `crm-voice`, `crm-flow`, `crm-enrich`, `crm-track`, `crm-meta` deployed; Script M loaded; website checker on pg_cron. Workflow tables and triggers applied. Phone tables `crm_calls` and `crm_numbers` applied. `CRON_SECRET` and `FORM_SECRET` live in the database vault (`crm_cron_secret`, `crm_form_secret`); `supabase/cron.sql` applied.
 - **Front end**: `.env.production` holds the public URL and publishable key. Build `npm run build`, output `dist`, host on Cloudflare Pages (project `reboot-crm`). Address: `crm.rebootmedia.us` (custom domain on the Pages project; only that subdomain, root email records untouched).
-- **Waiting on K**: phone carrier pick and Twilio secrets (see phone tracking above); logins for K and Ali (Supabase → Authentication → Add user); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
+- **Waiting on K**: phone carrier pick and Twilio secrets (see phone tracking above); logins (K and Ali set their own on the login page); Resend account, domain and the `RESEND_API_KEY` / `RESEND_WEBHOOK_SECRET` function secrets; webhook → `…/functions/v1/crm-webhook` (opened, clicked, bounced, complained, received); optional `REPLY_TO` / `FORWARD_TO`.
 - **Later**: point the website's `/api/lead` at `crm-form`, import the GHL export, run both side by side for a week, then cancel GHL.
