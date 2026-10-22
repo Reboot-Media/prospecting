@@ -1,3 +1,4 @@
+import { LEAD_EXTRAS } from './constants'
 import type { Lead, Pain } from './types'
 import { e164, uid } from './format'
 
@@ -161,6 +162,7 @@ export function buildLeads(table: string[][], map: Partial<Record<Field, number>
       sequence_step: 0,
       sequence_state: null,
       email_status: 'ok',
+      ...LEAD_EXTRAS,
       owner: opts.owner,
       tags,
       notes: '',

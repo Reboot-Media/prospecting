@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Avatar, Badge, Button, Card, CardHead, Empty, Icon, Tabs } from '../components/ui'
 import { ComposeModal, EmailPulse, LeadEditor, LeadHeader, LeadTimeline } from '../components/LeadPanel'
 import { OutcomeBar } from '../components/OutcomeBar'
+import { ProfileCard } from '../components/Profile'
 import { FORM_LABEL, MEETING_LABEL, MEETING_TONE, SEGMENT_LABEL } from '../lib/constants'
 import { ago, when } from '../lib/format'
 import { useData } from '../lib/store'
@@ -139,6 +140,7 @@ export function Contact({ id, back, callNow }: { id: string; back(): void; callN
         </div>
 
         <div className="space-y-5">
+          <ProfileCard lead={lead} />
           <Card>
             <CardHead title="Email tracking" sub={emails.length ? `${emails.length} sent` : 'Nothing sent yet'} />
             <ul className="px-2 pb-2">

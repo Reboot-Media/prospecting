@@ -42,6 +42,15 @@ export function fill(s: string, l: { first_name: string; company: string; city: 
     .replaceAll('{city}', l.city)
 }
 
+// Links to rebootmedia.us carry the contact id (?rb=) so site visits count toward buyer intent.
+export function tagLinks(body: string, leadId: string) {
+  return body.replace(/https?:\/\/(?:[a-z0-9-]+\.)?rebootmedia\.us[^\s)>\]"']*/gi, (m) => {
+    const trail = m.match(/[.,!?;:]+$/)?.[0] || ''
+    const u = m.slice(0, m.length - trail.length)
+    return (/[?&]rb=/.test(u) ? u : `${u}${u.includes('?') ? '&' : '?'}rb=${leadId}`) + trail
+  })
+}
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 // Minimal version of the Reboot branded shell: purple and white, logo text top-left,

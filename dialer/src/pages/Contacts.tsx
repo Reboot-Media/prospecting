@@ -19,7 +19,7 @@ import {
   Th,
   inputCls,
 } from '../components/ui'
-import { PAIN_LABEL, SEGMENT_LABEL, STAGE_LABEL, STAGE_TONE, STATUS_LABEL } from '../lib/constants'
+import { LEAD_EXTRAS, PAIN_LABEL, SEGMENT_LABEL, STAGE_LABEL, STAGE_TONE, STATUS_LABEL } from '../lib/constants'
 import { ago, digits, e164, fullName, prettyPhone, uid } from '../lib/format'
 import { matchesList } from '../lib/metrics'
 import { useData } from '../lib/store'
@@ -330,6 +330,7 @@ function NewContact({ open, onClose, onMade }: { open: boolean; onClose(): void;
       sequence_step: 0,
       sequence_state: null,
       email_status: 'ok',
+      ...LEAD_EXTRAS,
       created_at: t,
       updated_at: t,
     }

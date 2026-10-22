@@ -7,6 +7,8 @@ import { DIALABLE, OUTCOME_LABEL, PAIN_LABEL } from '../lib/constants'
 import { ago, prettyPhone } from '../lib/format'
 import type { Lead } from '../lib/types'
 import { useData } from '../lib/store'
+import { ScriptPanel } from './Scripts'
+import { ProfileStrip } from '../components/Profile'
 
 const COOLDOWN_MS = 2 * 3600e3 // don't redial the same number within 2 hours
 
@@ -136,6 +138,7 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
                 </div>
               )}
               <LeadHeader lead={current} big />
+              <ProfileStrip lead={current} />
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-500">
                 <span>
                   {current.attempts} attempt{current.attempts === 1 ? '' : 's'}
@@ -157,30 +160,40 @@ export function Dial({ focusId, clearFocus }: { focusId: string; clearFocus(): v
                 <p className="mt-3 hidden text-xs text-ink-400 sm:block">Keys: C call · 1–8 outcome · S skip</p>
               </div>
             </Card>
+            <Card className="xl:hidden">
+              <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink-900">Script</div>
+              <ScriptPanel lead={current} />
+            </Card>
             <Card className="p-5">
               <h3 className="mb-3 text-sm font-semibold text-ink-900">Timeline</h3>
               <LeadTimeline lead={current} />
             </Card>
           </div>
-          <Card className="h-fit">
-            <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink-900">Up next</div>
-            {next.length === 0 && <div className="px-4 py-6 text-sm text-ink-400">Nothing after this one.</div>}
-            <ul>
-              {next.map((l) => (
-                <li key={l.id}>
-                  <button onClick={() => setCurrentId(l.id)} className="flex w-full items-center gap-3 border-t border-line px-4 py-2.5 text-left first:border-t-0 hover:bg-wash">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-ink-900">{l.company}</div>
-                      <div className="truncate text-xs text-ink-500">
-                        {prettyPhone(l.phone)} · {l.city || '—'}
+          <div className="space-y-5">
+            <Card className="hidden xl:block">
+              <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink-900">Script</div>
+              <ScriptPanel lead={current} />
+            </Card>
+            <Card className="h-fit">
+              <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink-900">Up next</div>
+              {next.length === 0 && <div className="px-4 py-6 text-sm text-ink-400">Nothing after this one.</div>}
+              <ul>
+                {next.map((l) => (
+                  <li key={l.id}>
+                    <button onClick={() => setCurrentId(l.id)} className="flex w-full items-center gap-3 border-t border-line px-4 py-2.5 text-left first:border-t-0 hover:bg-wash">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-ink-900">{l.company}</div>
+                        <div className="truncate text-xs text-ink-500">
+                          {prettyPhone(l.phone)} · {l.city || '—'}
+                        </div>
                       </div>
-                    </div>
-                    {dueIds.has(l.id) ? <Icon name="bell" className="h-4 w-4 text-sand-600" /> : <PainBadge pain={l.pain} />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                      {dueIds.has(l.id) ? <Icon name="bell" className="h-4 w-4 text-sand-600" /> : <PainBadge pain={l.pain} />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
         </div>
       )}
     </div>

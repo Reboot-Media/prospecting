@@ -8,11 +8,16 @@
 //   POST /inbound-done   end of an inbound call: missed -> voicemail + callback task
 //   POST /recording      recording finished
 //   GET  /recording      streams a recording to a signed-in teammate
+//   POST /transcribe     (re)transcribes one call for a signed-in teammate
+//
+// Recorded calls of transcribe_min_sec or longer are transcribed by Gemini
+// (GEMINI_API_KEY): transcript with speakers, a two-line summary, pain, "why now",
+// objections and the next step, saved on the call.
 //
 // Twilio requests are checked against TWILIO_AUTH_TOKEN (X-Twilio-Signature).
 // Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_API_KEY_SID,
 // TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID.
-import { db, json, settings } from '../_shared/common.ts'
+import { db, json, secret, settings } from '../_shared/common.ts'
 
 const env = (k: string) => Deno.env.get(k) || ''
 const PUBLIC = `${env('SUPABASE_URL')}/functions/v1/crm-voice`
@@ -79,6 +84,83 @@ async function accessToken(identity: string) {
   return `${body}.${b64url(await hmac('SHA-256', env('TWILIO_API_KEY_SECRET'), body))}`
 }
 
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'authorization, apikey, content-type',
+  'access-control-allow-methods': 'POST, GET, OPTIONS',
+}
+
+function b64(bytes: Uint8Array) {
+  let s = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(s)
+}
+
+const PROMPT = `This is a recorded sales call between Reboot Media (Kendall "K" or Ali, who help roofing companies get signed jobs) and a roofing company, or a voicemail left for Reboot.
+Return JSON with:
+- transcript: the full conversation, one line per turn, each line starting with the speaker ("K:", "Ali:", "Roofer:", "Gatekeeper:" or "Voicemail:").
+- summary: two plain sentences on what happened.
+- pain: the roofer's problem in his own words, or "".
+- why_now: his answer to why he wants it fixed now, word for word, or "".
+- objections: the objections he raised, short.
+- next_step: the one next action for Reboot.
+- sentiment: hot, warm or cold (how likely he is to book or buy).`
+
+async function transcribe(sb: ReturnType<typeof db>, id: string) {
+  const { data: c } = await sb.from('crm_calls').select('id, recording_url').eq('id', id).maybeSingle()
+  if (!c?.recording_url) return { error: 'no recording' }
+  const key = await secret('GEMINI_API_KEY')
+  if (!key) {
+    await sb.from('crm_calls').update({ insights: { error: 'Add GEMINI_API_KEY to turn on transcripts' } }).eq('id', id)
+    return { error: 'GEMINI_API_KEY missing' }
+  }
+  try {
+    const audio = await fetch(`${c.recording_url}.mp3`, { headers: { authorization: `Basic ${btoa(`${env('TWILIO_ACCOUNT_SID')}:${env('TWILIO_AUTH_TOKEN')}`)}` } })
+    if (!audio.ok) throw new Error(`recording download ${audio.status}`)
+    const bytes = new Uint8Array(await audio.arrayBuffer())
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-2.5-flash'}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [{ parts: [{ inline_data: { mime_type: 'audio/mp3', data: b64(bytes) } }, { text: PROMPT }] }],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              transcript: { type: 'STRING' },
+              summary: { type: 'STRING' },
+              pain: { type: 'STRING' },
+              why_now: { type: 'STRING' },
+              objections: { type: 'ARRAY', items: { type: 'STRING' } },
+              next_step: { type: 'STRING' },
+              sentiment: { type: 'STRING', enum: ['hot', 'warm', 'cold'] },
+            },
+            required: ['transcript', 'summary', 'next_step', 'sentiment'],
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(120000),
+    })
+    const out = await r.json()
+    if (!r.ok) throw new Error(out?.error?.message || `Gemini ${r.status}`)
+    const j = JSON.parse(out.candidates?.[0]?.content?.parts?.[0]?.text || '{}')
+    await sb
+      .from('crm_calls')
+      .update({
+        transcript: String(j.transcript || ''),
+        summary: String(j.summary || ''),
+        insights: { pain: j.pain || '', why_now: j.why_now || '', objections: j.objections || [], next_step: j.next_step || '', sentiment: j.sentiment || undefined },
+      })
+      .eq('id', id)
+    return { ok: true }
+  } catch (e) {
+    await sb.from('crm_calls').update({ insights: { error: (e as Error).message } }).eq('id', id)
+    return { error: (e as Error).message }
+  }
+}
+
 const DIAL_STATUS: Record<string, string> = {
   completed: 'completed',
   answered: 'completed',
@@ -93,6 +175,7 @@ Deno.serve(async (req) => {
   const path = url.pathname.replace(/^.*\/crm-voice/, '') || '/'
   const q = url.searchParams
   const sb = db()
+  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
   /* streaming a recording to the app ----------------------------------- */
   if (req.method === 'GET' && path === '/recording') {
@@ -121,9 +204,15 @@ Deno.serve(async (req) => {
   /* browser token -------------------------------------------------------- */
   if (path === '/token') {
     const name = await teammate((req.headers.get('authorization') || '').replace(/^Bearer /, ''))
-    if (!name) return json({ error: 'unauthorized' }, 401)
-    if (!env('TWILIO_API_KEY_SECRET') || !env('TWILIO_TWIML_APP_SID')) return json({ error: 'Phone carrier is not connected yet' }, 503)
-    return json({ token: await accessToken(name), identity: name })
+    if (!name) return json({ error: 'unauthorized' }, 401, CORS)
+    if (!env('TWILIO_API_KEY_SECRET') || !env('TWILIO_TWIML_APP_SID')) return json({ error: 'Phone carrier is not connected yet' }, 503, CORS)
+    return json({ token: await accessToken(name), identity: name }, 200, CORS)
+  }
+  if (path === '/transcribe') {
+    if (!(await teammate((req.headers.get('authorization') || '').replace(/^Bearer /, '')))) return json({ error: 'unauthorized' }, 401, CORS)
+    const { call } = await req.json().catch(() => ({}))
+    const out = await transcribe(sb, String(call || ''))
+    return json(out, out.error ? 400 : 200, CORS)
   }
 
   // Everything below is Twilio calling us.
@@ -214,7 +303,8 @@ Deno.serve(async (req) => {
     const rec = n?.record !== false && s.record_calls !== false
     const recAttrs = rec ? ` record="record-from-answer" recordingStatusCallback="${esc(`${PUBLIC}/recording?call=${id}`)}"` : ''
     const targets = `<Client>${esc(owner)}</Client>${n?.forward_to ? `<Number>${esc(n.forward_to)}</Number>` : ''}`
-    return xml(`<Dial timeout="22" answerOnBridge="true" action="${esc(`${PUBLIC}/inbound-done?call=${id}`)}"${recAttrs}>${targets}</Dial>`)
+    const notice = rec && s.record_notice !== false ? '<Say voice="Polly.Matthew">This call may be recorded.</Say>' : ''
+    return xml(`${notice}<Dial timeout="22" answerOnBridge="true" action="${esc(`${PUBLIC}/inbound-done?call=${id}`)}"${recAttrs}>${targets}</Dial>`)
   }
 
   if (path === '/inbound-done') {
@@ -270,6 +360,15 @@ Deno.serve(async (req) => {
             : {}),
         })
         .eq('id', id)
+      // Transcribe in the background so Twilio gets its answer right away.
+      const min = Number(s.transcribe_min_sec ?? 20)
+      if (s.transcribe_calls !== false && Number(form.RecordingDuration || 0) >= min) {
+        const job = transcribe(sb, id)
+        // deno-lint-ignore no-explicit-any
+        const rt = (globalThis as any).EdgeRuntime
+        if (rt?.waitUntil) rt.waitUntil(job)
+        else await job
+      }
     }
     return json({ ok: true })
   }

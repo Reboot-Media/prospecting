@@ -1,6 +1,11 @@
 import { advance, isDue, startRun, triggerLabel, type FlowRun, type Workflow } from './flow'
 import { recipes } from './recipes'
+import { defaultScripts } from './scripts'
+import { CALL_EXTRAS } from './constants'
 import type {
+  CallInsights,
+  SiteTags,
+  SiteVisit,
   Activity,
   Call,
   Campaign,
@@ -111,6 +116,61 @@ function rng(seed: number) {
   return () => {
     s = (s * 1664525 + 1013904223) % 4294967296
     return s / 4294967296
+  }
+}
+
+// Profile-card data for a sample roofer: reviews and what their website runs.
+function demoProfile(i: number, r: () => number) {
+  const tags: SiteTags = {}
+  if (i % 3 !== 0) tags.gtm = [`GTM-${(100000 + i * 7919).toString(36).toUpperCase().slice(0, 7)}`]
+  if (i % 2 === 0) tags.ga4 = [`G-${(900000 + i * 31).toString(36).toUpperCase()}`]
+  if (i % 5 === 1 || i % 5 === 2) tags.google_ads = [`AW-${11000000000 + i * 97}`]
+  if (i % 4 === 1) tags.meta_pixel = [String(400000000000000 + i * 131)]
+  if (i % 7 === 2) tags.call_tracking = ['CallRail']
+  if (i % 6 === 3) tags.chat = ['Podium']
+  if (i % 8 === 5) tags.reviews_widget = ['Birdeye']
+  if (i % 9 === 4) tags.estimator = ['Roofle']
+  tags.builder = ['WordPress', 'Wix', 'Squarespace', 'Webflow', 'GoDaddy'][i % 5]
+  const noSite = i % 13 === 7
+  return {
+    google_rating: i % 10 === 9 ? null : Math.round((3.6 + r() * 1.4) * 10) / 10,
+    review_count: i % 10 === 9 ? null : Math.round(4 + r() * (i % 3 === 0 ? 40 : 260)),
+    gbp_url: i % 10 === 9 ? '' : 'https://maps.google.com/?cid=demo',
+    site_tags: noSite ? { error: 'No website on file' } : tags,
+    site_checked_at: noSite ? null : new Date(Date.now() - (i % 9) * 864e5).toISOString(),
+  }
+}
+
+// A believable summary for a recorded sample call.
+function demoTranscript(outcome: string, status: string, first: string, r: () => number): { transcript: string; summary: string; insights: CallInsights | null } {
+  if (status !== 'completed') return { ...CALL_EXTRAS }
+  const pick = <T>(a: T[]) => a[Math.floor(r() * a.length)]
+  const why = pick(['slow months after storm season', 'losing bids to a bigger roofer', 'wants to stop relying on referrals', 'new crew needs steady work'])
+  const S: Record<string, [string, CallInsights]> = {
+    booked: [
+      `${first} runs mostly on referrals and said the phone goes quiet after storm season. Agreed to 30 minutes tomorrow at 9 and will text YES.`,
+      { next_step: 'Watch for the YES text; call by end of day if it does not come', pain: 'Phone goes quiet after storm season', why_now: why, sentiment: 'hot', objections: [] },
+    ],
+    callback: [
+      `${first} was on a roof and asked for a call back. Open to talking about slow months.`,
+      { next_step: 'Call back at the time he gave', pain: 'Slow months', sentiment: 'warm', objections: ['Busy right now'] },
+    ],
+    gatekeeper: ['Office manager answered. Owner is out on estimates until the afternoon.', { next_step: 'Try the owner after 3 PM', sentiment: 'warm', objections: [] }],
+    not_interested: [
+      `${first} said they already have someone handling marketing and are booked out for a month.`,
+      { next_step: 'Check back after the backlog clears', sentiment: 'cold', objections: ['We already have someone', "We're booked out"] },
+    ],
+    dnc: [`${first} asked not to be called again.`, { next_step: 'Do not call', sentiment: 'cold', objections: ['Asked not to be called'] }],
+    inbound: [
+      `${first} called back about the email and wants to know how the Visibility Check works. Asked about cost.`,
+      { next_step: 'Book the call; price comes after the 30 minutes', pain: 'Unsure where jobs are going', sentiment: 'hot', objections: ['How much?'] },
+    ],
+  }
+  const [summary, insights] = S[outcome] || S.callback
+  return {
+    summary,
+    insights,
+    transcript: `Kendall: Hey ${first}, it's Kendall with Reboot.\n${first}: Hey, what's this about?\nKendall: How are most of your jobs coming in right now?\n${first}: Mostly referrals, honestly.\n(sample transcript)`,
   }
 }
 
@@ -238,6 +298,7 @@ export function demoData() {
       sequence_step: inSeq ? 1 + (i % 4) : 0,
       sequence_state: inSeq ? (i % 9 === 0 ? 'replied' : i % 14 === 1 ? 'bounced' : 'active') : null,
       email_status: inSeq && i % 14 === 1 ? 'bounced' : 'ok',
+      ...demoProfile(i, r),
       created_at: iso(now - 20 * D),
       updated_at: iso(now - H),
     })
@@ -714,6 +775,7 @@ export function demoData() {
       outcome: a.outcome,
       via: 'browser',
       provider_id: null,
+      ...demoTranscript(a.outcome, d[2], l.first_name, r),
       created_at: a.created_at,
     })
   }
@@ -743,6 +805,7 @@ export function demoData() {
       outcome: null,
       via: 'forward',
       provider_id: null,
+      ...(missed ? CALL_EXTRAS : demoTranscript('inbound', 'completed', known?.first_name || 'there', r)),
       created_at: iso(t),
     })
   }
@@ -778,7 +841,15 @@ export function demoData() {
     for (let k = 0; k < n; k++) {
       const lead = leads[Math.floor(r() * leads.length)]
       const startMs = now - Math.floor(r() * 9 * D) - H
-      const base = { lead, opened: r() < 0.5, clicked: r() < 0.2, replied: r() < 0.15, meeting_upcoming: r() < 0.3, booking_link: 'https://calendly.com/hello-rebootmedia/strategycall', callers: ['K', 'Ali'] }
+      const base = {
+        lead,
+        opened: r() < 0.5,
+        clicked: r() < 0.2,
+        replied: r() < 0.15,
+        meeting_upcoming: r() < 0.3,
+        booking_link: 'https://calendly.com/hello-rebootmedia/strategycall',
+        callers: ['K', 'Ali'],
+      }
       let run = startRun(w, lead.id, new Date(startMs), id(), `Triggered: ${triggerLabel(w.trigger.type)}${w.trigger.value ? ` · ${w.trigger.value.replace(/_/g, ' ')}` : ''}`)
       run = advance(run, w, { ...base, now: new Date(startMs) }).run
       for (let g = 0; g < 4 && run.status === 'waiting' && run.wake_at && Date.parse(run.wake_at) < now; g++) {
@@ -791,7 +862,26 @@ export function demoData() {
     }
   }
 
+  /* scripts + website visits ----------------------------------------- */
+  const scripts = defaultScripts(id, iso(now - 6 * D))
+  const site_visits: SiteVisit[] = []
+  const PAGES = ['/', '/grow', '/case-studies', '/pricing', '/visibility-check', '/about']
+  for (let k = 0; k < 60; k++) {
+    const l = leads[Math.floor(r() * N)]
+    const t = now - Math.floor(r() * 10 * D)
+    site_visits.push({
+      id: id(),
+      lead_id: l.id,
+      visitor: `v-${l.id.slice(0, 8)}`,
+      page: PAGES[Math.floor(r() * PAGES.length)],
+      referrer: r() < 0.7 ? 'email' : 'google',
+      created_at: iso(t),
+    })
+  }
+
   return {
+    scripts,
+    site_visits,
     workflows,
     flow_runs,
     leads,

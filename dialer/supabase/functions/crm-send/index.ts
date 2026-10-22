@@ -4,7 +4,7 @@
 //  2. Send emails K approved, inside the weekday 8-11 AM Central window, under
 //     the daily cap, through Resend. Opens and clicks come back via crm-webhook.
 // Call with header x-cron-secret: <CRON_SECRET>. ?dry=1 reports without writing.
-import { brandedHtml, checkHeader, chicagoMidnightIso, chicagoNow, db, fill, json, resendSend, settings } from '../_shared/common.ts'
+import { brandedHtml, checkHeader, chicagoMidnightIso, chicagoNow, db, fill, json, resendSend, settings, tagLinks } from '../_shared/common.ts'
 
 Deno.serve(async (req) => {
   if (!(await checkHeader(req, 'x-cron-secret', 'CRON_SECRET'))) return json({ error: 'unauthorized' }, 401)
@@ -94,8 +94,8 @@ Deno.serve(async (req) => {
         cc: e.cc ? e.cc.split(',').map((x: string) => x.trim()).filter(Boolean) : undefined,
         reply_to: Deno.env.get('REPLY_TO') || e.from_addr || s.sender,
         subject: e.subject,
-        text: e.body,
-        html: e.branded ? brandedHtml(e.body) : undefined,
+        text: tagLinks(e.body, e.lead_id),
+        html: e.branded ? brandedHtml(tagLinks(e.body, e.lead_id)) : undefined,
         tags: [{ name: 'crm_email', value: e.id.replace(/-/g, '') }],
       })
       const t = new Date().toISOString()

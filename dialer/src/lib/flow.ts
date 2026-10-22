@@ -17,6 +17,8 @@ export type TriggerType =
   | 'email_replied'
   | 'email_bounced'
   | 'missed_call'
+  | 'inbound_call'
+  | 'site_visit'
   | 'manual'
 
 export interface FlowEvent {
@@ -144,6 +146,13 @@ export type Effect =
 export const TRIGGERS: { type: TriggerType; label: string; valueLabel?: string; hint: string }[] = [
   { type: 'call_outcome', label: 'Call outcome logged', valueLabel: 'Outcome', hint: 'After you log a result on a dial.' },
   { type: 'missed_call', label: 'Missed inbound call', valueLabel: 'From number source', hint: 'Someone called a tracking number and nobody picked up.' },
+  { type: 'inbound_call', label: 'Roofer called us', valueLabel: 'From number source', hint: 'A known roofer called one of your numbers and someone picked up.' },
+  {
+    type: 'site_visit',
+    label: 'Visited rebootmedia.us',
+    valueLabel: 'Page contains',
+    hint: 'A roofer you emailed opened the site (links carry their id). Use /pricing or /case for buying signals.',
+  },
   { type: 'meeting_booked', label: 'Call booked', hint: 'A meeting lands on the calendar.' },
   { type: 'meeting_status', label: 'Meeting status changed', valueLabel: 'New status', hint: 'Confirmed, showed, no-show or canceled.' },
   { type: 'stage_changed', label: 'Pipeline stage changed', valueLabel: 'New stage', hint: 'A deal moves to a stage.' },
@@ -303,9 +312,7 @@ export function mapSteps(steps: Arm, fn: (s: Step) => Step): Arm {
 }
 
 export function removeStep(steps: Arm, id: string): Arm {
-  return steps
-    .filter((s) => s.id !== id)
-    .map((s) => (s.type === 'branch' || s.type === 'wait_for' ? { ...s, yes: removeStep(s.yes, id), no: removeStep(s.no, id) } : s))
+  return steps.filter((s) => s.id !== id).map((s) => (s.type === 'branch' || s.type === 'wait_for' ? { ...s, yes: removeStep(s.yes, id), no: removeStep(s.no, id) } : s))
 }
 
 // Where a new or moved step goes: into the top list or one arm of a step, at an index.
@@ -420,7 +427,8 @@ export function conditionsPass(list: Condition[], match: 'all' | 'any', ctx: Flo
 
 export function triggerMatches(wf: Workflow, ev: FlowEvent, ctx: FlowCtx): boolean {
   if (wf.status !== 'active' || wf.trigger.type !== ev.type || ev.type === 'manual') return false
-  if (wf.trigger.value && wf.trigger.value.toLowerCase() !== ev.value.toLowerCase()) return false
+  const want = wf.trigger.value.toLowerCase()
+  if (want && (ev.type === 'site_visit' ? !ev.value.toLowerCase().includes(want) : want !== ev.value.toLowerCase())) return false
   return conditionsPass(wf.trigger.conditions, 'all', ctx)
 }
 
@@ -563,7 +571,13 @@ export function advance(run: FlowRun, wf: Workflow, ctx: FlowCtx): { run: FlowRu
       effects.push({ kind: 'task', task_kind: 'follow_up', owner, due_at: t, reason: `Text ${lead.phone}: ${fill(s.body, c)}` })
       log.push({ at: t, step: s.id, text: 'Text task created' })
     } else if (s.type === 'task') {
-      effects.push({ kind: 'task', task_kind: s.kind, owner: s.owner || owner, due_at: new Date(ctx.now.getTime() + s.due_minutes * 6e4).toISOString(), reason: fill(s.reason, c) || `From ${wf.name}` })
+      effects.push({
+        kind: 'task',
+        task_kind: s.kind,
+        owner: s.owner || owner,
+        due_at: new Date(ctx.now.getTime() + s.due_minutes * 6e4).toISOString(),
+        reason: fill(s.reason, c) || `From ${wf.name}`,
+      })
       log.push({ at: t, step: s.id, text: `Task for ${s.owner || owner}` })
     } else if (s.type === 'notify') {
       effects.push({ kind: 'task', task_kind: 'todo', owner: s.to || owner, due_at: t, reason: fill(s.text, c) })
@@ -624,6 +638,10 @@ export function eventsFromChange(table: string, before: Record<string, any> | nu
     const map: Record<string, TriggerType> = { open: 'email_opened', click: 'email_clicked', reply: 'email_replied', bounce: 'email_bounced' }
     if (map[after.type]) out.push(ev(map[after.type], after.url || '', after.lead_id))
   }
-  if (table === 'calls' && after.lead_id && after.direction === 'in' && after.status === 'missed' && before?.status !== 'missed') out.push(ev('missed_call', after.source || '', after.lead_id))
+  if (table === 'calls' && after.lead_id && after.direction === 'in' && after.status === 'missed' && before?.status !== 'missed')
+    out.push(ev('missed_call', after.source || '', after.lead_id))
+  if (table === 'calls' && after.lead_id && after.direction === 'in' && after.status === 'completed' && before && before.status !== 'completed')
+    out.push(ev('inbound_call', after.source || '', after.lead_id))
+  if (table === 'site_visits' && !before && after.lead_id) out.push(ev('site_visit', after.page || '', after.lead_id))
   return out
 }

@@ -81,12 +81,59 @@ export function Integrations({ go }: { go(r: Route): void }) {
       go: 'calendar',
     },
     {
-      name: 'Calling carrier',
-      what: 'Click-to-call in the browser with recordings (Telnyx)',
+      name: 'Phone carrier',
+      what: 'Numbers for K and Ali, browser calling, recordings, call-backs tracked (Twilio)',
       icon: 'phone',
-      status: 'Later',
+      status: 'Needs your pick',
+      tone: 'sand',
+      detail: '2 local numbers + per-minute',
+      group: 'core',
+      go: 'numbers',
+    },
+    {
+      name: 'Call transcripts',
+      what: 'Gemini writes the transcript, summary, objections and next step for every recorded call',
+      icon: 'message',
+      status: 'Needs key',
+      tone: 'sand',
+      detail: 'About $0.002 a minute',
+      group: 'core',
+      go: 'settings',
+    },
+    {
+      name: 'Meta lead ads',
+      what: 'Facebook and Instagram lead forms become contacts and start speed-to-lead',
+      icon: 'users',
+      status: 'Needs setup',
+      tone: 'sand',
+      detail: 'Webhook below',
+      group: 'core',
+    },
+    {
+      name: 'Website tracking',
+      what: 'Visits to rebootmedia.us from emailed roofers count toward buyer intent',
+      icon: 'eye',
+      status: 'Needs your go',
+      tone: 'sand',
+      detail: 'One tag in GTM or the site',
+      group: 'core',
+    },
+    {
+      name: 'Website checker',
+      what: "Reads each roofer's site for GTM, GA4, Google Ads, Meta pixel, call tracking and widgets",
+      icon: 'globe',
+      status: live ? 'Running' : 'Demo data',
+      tone: live ? 'sage' : 'mist',
+      detail: '15 roofers every 15 min',
+      group: 'core',
+    },
+    {
+      name: 'Google reviews',
+      what: 'Rating and review count on every roofer, filled automatically',
+      icon: 'star',
+      status: 'Optional',
       tone: 'stone',
-      detail: 'About $25–50/mo at 200 dials/day',
+      detail: 'Needs a Google Places key; or type them in',
       group: 'later',
     },
     {
@@ -127,7 +174,7 @@ export function Integrations({ go }: { go(r: Route): void }) {
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-sand-50 px-4 py-2.5 text-sm text-sand-700 ring-1 ring-inset ring-sand-400/30">
           <Icon name="alert" />
           <span className="flex-1">
-            <b className="font-medium">Resend isn't set up yet.</b> Emails you approve wait in the queue until it is.
+            <b className="font-medium">{attention.length} things need you:</b> {attention.map((c) => c.name).join(', ')}.
           </span>
         </div>
       )}
@@ -173,6 +220,78 @@ export function Integrations({ go }: { go(r: Route): void }) {
           </Card>
         ))}
       </div>
+      {tab === 'core' && <SetupDetails />}
     </div>
+  )
+}
+
+const FN = backend.functionsUrl || 'https://fqlgfmuiedrdowxnvcjv.supabase.co/functions/v1'
+
+function Copy({ text }: { text: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard?.writeText(text).then(() => {
+          setDone(true)
+          setTimeout(() => setDone(false), 1500)
+        })
+      }}
+      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-ink-700 ring-1 ring-inset ring-line hover:bg-wash"
+    >
+      {done ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
+export function trackingSnippet() {
+  return `<script>(function(){try{var k='rb_v',v=localStorage.getItem(k);if(!v){v=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Math.random()).slice(2)+Date.now();localStorage.setItem(k,v)}var rb=new URLSearchParams(location.search).get('rb');fetch('${FN}/crm-track',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({v:v,rb:rb,page:location.pathname,ref:document.referrer}),keepalive:true})}catch(e){}})();</script>`
+}
+
+function SetupDetails() {
+  const rows: { title: string; body: string; value: string; steps: string[] }[] = [
+    {
+      title: 'Meta lead ads webhook',
+      body: 'Where Meta sends each new lead.',
+      value: `${FN}/crm-meta`,
+      steps: [
+        'In your Meta app: Webhooks → Page → subscribe to leadgen with this URL.',
+        'Verify token: any phrase; add the same phrase as META_VERIFY_TOKEN in Supabase → Edge Functions → Secrets, with META_APP_SECRET and a page token as META_PAGE_TOKEN.',
+      ],
+    },
+    {
+      title: 'Website tracking tag',
+      body: 'Paste as a Custom HTML tag on All Pages in GTM (or in the site head). Email links already carry ?rb= so visits tie to the roofer.',
+      value: trackingSnippet(),
+      steps: ['Changes the live site, so it waits for your go.'],
+    },
+    {
+      title: 'Call transcripts',
+      body: 'Add your Gemini key as GEMINI_API_KEY in Supabase → Edge Functions → Secrets. Calls under 20 seconds are skipped (Settings).',
+      value: 'GEMINI_API_KEY',
+      steps: [],
+    },
+  ]
+  return (
+    <Card className="mt-5">
+      <div className="border-b border-line px-4 py-3 text-sm font-semibold text-ink-900">Setup details</div>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.title} className="border-b border-line px-4 py-3 last:border-0">
+            <div className="text-sm font-medium text-ink-900">{r.title}</div>
+            <div className="mt-0.5 text-xs text-ink-500">{r.body}</div>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-md bg-wash px-2 py-1.5 text-[11px] text-ink-700 ring-1 ring-inset ring-line">{r.value}</code>
+              <Copy text={r.value} />
+            </div>
+            {r.steps.map((x) => (
+              <p key={x} className="mt-1.5 text-xs text-ink-500">
+                {x}
+              </p>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </Card>
   )
 }

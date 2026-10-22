@@ -13,6 +13,7 @@ export type Route =
   | 'sequences'
   | 'workflows'
   | 'workflow'
+  | 'scripts'
   | 'campaigns'
   | 'approvals'
   | 'templates'
@@ -53,6 +54,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Outreach',
     items: [
       { key: 'workflows', label: 'Workflows', icon: 'bolt' },
+      { key: 'scripts', label: 'Scripts', icon: 'script' },
       { key: 'sequences', label: 'Sequences', icon: 'flow' },
       { key: 'campaigns', label: 'Campaigns', icon: 'send' },
       { key: 'approvals', label: 'Approvals', icon: 'approve' },

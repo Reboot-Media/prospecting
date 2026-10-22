@@ -25,6 +25,7 @@ import { Import } from './pages/Import'
 import { Settings } from './pages/Settings'
 import { Calls, calledBackAfter } from './pages/Calls'
 import { Numbers } from './pages/Numbers'
+import { Scripts } from './pages/Scripts'
 import { alreadyAlerted, markAlerted, notify } from './lib/alerts'
 import { when } from './lib/format'
 import { href, parseHash, type Loc, type Route } from './lib/router'
@@ -39,7 +40,7 @@ export default function App() {
   }, [])
   const signedOut = useCallback(() => setMe(null), [])
   if (me === undefined) return null
-  if (!me) return <Login onIn={setMe} />
+  if (!me || backend.recovering()) return <Login onIn={setMe} />
   return (
     <DataProvider me={me} onSignOut={signedOut}>
       <CallProvider>
@@ -49,51 +50,173 @@ export default function App() {
   )
 }
 
+type LoginMode = 'in' | 'first' | 'forgot' | 'reset'
+
 function Login({ onIn }: { onIn(s: Session): void }) {
+  const demo = backend.mode === 'demo'
+  const [mode, setMode] = useState<LoginMode>(backend.recovering() ? 'reset' : 'in')
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
   const [err, setErr] = useState('')
-  const demo = backend.mode === 'demo'
-  async function submit(name?: string) {
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function run(fn: () => Promise<void>) {
     setErr('')
+    setNote('')
+    setBusy(true)
     try {
-      onIn(await backend.signIn(name ?? email, pw))
+      await fn()
     } catch (e: any) {
-      setErr(e?.message || 'Sign in failed')
+      const m = String(e?.message || 'Something went wrong')
+      setErr(/invalid login/i.test(m) ? 'Wrong email or password. First time here? Set your password below.' : m)
+    } finally {
+      setBusy(false)
     }
   }
+  const submit = (name?: string) =>
+    run(async () => {
+      if (demo) return onIn(await backend.signIn(name ?? 'K', ''))
+      const e = email.trim().toLowerCase()
+      if (mode === 'in') return onIn(await backend.signIn(e, pw))
+      if (mode === 'forgot') {
+        await backend.sendReset(e)
+        setNote('Check your inbox for a reset link. It opens this page.')
+        return
+      }
+      if (pw.length < 8) throw new Error('Use at least 8 characters.')
+      if (pw !== pw2) throw new Error('The two passwords do not match.')
+      if (mode === 'reset') return onIn(await backend.setPassword(pw))
+      if (!(await backend.isTeamEmail(e))) throw new Error('This CRM is only for the Reboot team. Use your rebootmedia.us email.')
+      const s = await backend.signUp(e, pw)
+      if (s) return onIn(s)
+      setNote('Almost there: open the confirmation email we just sent, then sign in here.')
+      setMode('in')
+    })
+
+  const title = { in: 'Sign in', first: 'Set your password', forgot: 'Reset your password', reset: 'Pick a new password' }[mode]
   return (
-    <div className="grid min-h-screen place-items-center bg-canvas p-4">
-      <Card className="w-full max-w-sm p-6">
-        <Logo className="h-9 w-9" />
-        <h1 className="mt-4 text-lg font-semibold text-ink-900">Reboot CRM</h1>
-        {demo ? (
-          <>
-            <p className="mt-1 text-sm text-ink-500">Demo mode. Sample roofers, nothing real gets called or emailed. Pick who you are.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <Button variant="primary" onClick={() => submit('K')}>
-                I'm K
+    <div className="grid min-h-screen bg-canvas lg:grid-cols-2">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-ink-900 p-10 text-white lg:flex">
+        <div className="flex items-center gap-2.5">
+          <Logo className="h-8 w-8 [&_rect]:fill-white [&_path]:fill-ink-900" />
+          <span className="text-sm font-semibold tracking-tight">Reboot CRM</span>
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-3xl font-semibold leading-tight tracking-tight">Dial roofers. Book the call. Sign the job.</h2>
+          <p className="mt-4 text-sm leading-relaxed text-white/60">
+            Your dial queue, callbacks that never slip, every call recorded and summarized, cold email by pain lane, and the workflows that keep every roofer moving.
+          </p>
+          <ul className="mt-8 space-y-3 text-sm text-white/80">
+            {[
+              ['phone', 'Script M beside every dial, outcome logged every time'],
+              ['bell', 'Callbacks due jump the queue and ping you'],
+              ['bolt', 'Workflows for no-shows, replies, call-backs and new leads'],
+              ['chart', 'Reviews, ads and website tags on every roofer'],
+            ].map(([icon, text]) => (
+              <li key={text} className="flex items-center gap-3">
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10">
+                  <Icon name={icon as any} className="h-3.5 w-3.5" />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="text-xs text-white/40">Reboot Media · Austin, Texas · K and Ali only</div>
+      </div>
+
+      <div className="grid place-items-center p-4">
+        <Card className="w-full max-w-sm p-6">
+          <div className="flex items-center gap-2.5 lg:hidden">
+            <Logo className="h-8 w-8" />
+            <span className="text-sm font-semibold text-ink-900">Reboot CRM</span>
+          </div>
+          <h1 className="mt-4 text-lg font-semibold text-ink-900 lg:mt-0">{demo ? 'Reboot CRM demo' : title}</h1>
+          {demo ? (
+            <>
+              <p className="mt-1 text-sm text-ink-500">Demo mode. Sample roofers, nothing real gets called or emailed. Pick who you are.</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <Button variant="primary" onClick={() => submit('K')}>
+                  I'm K
+                </Button>
+                <Button onClick={() => submit('Ali')}>I'm Ali</Button>
+              </div>
+            </>
+          ) : (
+            <form
+              className="mt-5 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+            >
+              {mode === 'first' && <p className="text-sm text-ink-500">First time here. Use your rebootmedia.us email and pick a password.</p>}
+              {mode === 'reset' && <p className="text-sm text-ink-500">Pick a new password for your account.</p>}
+              {mode !== 'reset' && (
+                <input
+                  className={inputCls}
+                  type="email"
+                  required
+                  placeholder="you@rebootmedia.us"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  aria-label="Email"
+                />
+              )}
+              {mode !== 'forgot' && (
+                <input
+                  className={inputCls}
+                  type="password"
+                  required
+                  placeholder={mode === 'in' ? 'Password' : 'New password (8+ characters)'}
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+                  aria-label="Password"
+                />
+              )}
+              {(mode === 'first' || mode === 'reset') && (
+                <input
+                  className={inputCls}
+                  type="password"
+                  required
+                  placeholder="Same password again"
+                  value={pw2}
+                  onChange={(e) => setPw2(e.target.value)}
+                  autoComplete="new-password"
+                  aria-label="Confirm password"
+                />
+              )}
+              {err && <p className="text-sm text-clay-600">{err}</p>}
+              {note && <p className="text-sm text-sage-700">{note}</p>}
+              <Button variant="primary" className="w-full" type="submit" disabled={busy}>
+                {busy ? 'One moment…' : { in: 'Sign in', first: 'Create my login', forgot: 'Send reset link', reset: 'Save password' }[mode]}
               </Button>
-              <Button onClick={() => submit('Ali')}>I'm Ali</Button>
-            </div>
-          </>
-        ) : (
-          <form
-            className="mt-5 space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <input className={inputCls} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-            <input className={inputCls} type="password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
-            {err && <p className="text-sm text-clay-600">{err}</p>}
-            <Button variant="primary" className="w-full" type="submit">
-              Sign in
-            </Button>
-          </form>
-        )}
-      </Card>
+              {mode !== 'reset' && (
+                <div className="flex justify-between pt-1 text-xs">
+                  {mode === 'in' ? (
+                    <>
+                      <button type="button" onClick={() => (setMode('first'), setErr(''))} className="font-medium text-ink-700 hover:text-ink-900">
+                        First time? Set your password
+                      </button>
+                      <button type="button" onClick={() => (setMode('forgot'), setErr(''))} className="text-ink-500 hover:text-ink-900">
+                        Forgot password
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => (setMode('in'), setErr(''))} className="text-ink-500 hover:text-ink-900">
+                      Back to sign in
+                    </button>
+                  )}
+                </div>
+              )}
+            </form>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }
@@ -186,6 +309,7 @@ function Shell() {
       {r === 'calendar' && <Calendar openContact={openContact} />}
       {r === 'tasks' && <Tasks openContact={openContact} callNow={callNow} />}
       {r === 'workflows' && <Workflows open={(id) => go('workflow', id)} />}
+      {r === 'scripts' && <Scripts />}
       {r === 'workflow' && <WorkflowBuilder id={loc.id} back={() => go('workflows')} openContact={openContact} />}
       {r === 'sequences' && <Sequences />}
       {r === 'campaigns' && <Campaigns />}

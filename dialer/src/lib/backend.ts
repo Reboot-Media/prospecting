@@ -1,5 +1,24 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Activity, Call, Campaign, Email, EmailEvent, FlowRun, FormSubmission, Lead, Meeting, PhoneNumber, Sequence, Settings, SmartList, Task, Template, Workflow } from './types'
+import type {
+  Activity,
+  Call,
+  Campaign,
+  Email,
+  EmailEvent,
+  FlowRun,
+  FormSubmission,
+  Lead,
+  Meeting,
+  PhoneNumber,
+  Sequence,
+  Script,
+  Settings,
+  SiteVisit,
+  SmartList,
+  Task,
+  Template,
+  Workflow,
+} from './types'
 import { DEFAULT_SETTINGS } from './constants'
 import { demoData } from './demo'
 
@@ -21,9 +40,29 @@ export interface Rows {
   numbers: PhoneNumber
   workflows: Workflow
   flow_runs: FlowRun
+  scripts: Script
+  site_visits: SiteVisit
 }
 export type Table = keyof Rows
-export const TABLES: Table[] = ['leads', 'activities', 'tasks', 'meetings', 'emails', 'email_events', 'sequences', 'campaigns', 'lists', 'templates', 'forms', 'calls', 'numbers', 'workflows', 'flow_runs']
+export const TABLES: Table[] = [
+  'leads',
+  'activities',
+  'tasks',
+  'meetings',
+  'emails',
+  'email_events',
+  'sequences',
+  'campaigns',
+  'lists',
+  'templates',
+  'forms',
+  'calls',
+  'numbers',
+  'workflows',
+  'flow_runs',
+  'scripts',
+  'site_visits',
+]
 
 export type Change = {
   [K in Table]: { table: K; row: Rows[K]; deleted?: boolean }
@@ -41,6 +80,13 @@ export interface Backend {
   session(): Promise<Session | null>
   signIn(emailOrName: string, password: string): Promise<Session>
   signOut(): Promise<void>
+  // First login: K or Ali pick their own password (live only).
+  isTeamEmail(email: string): Promise<boolean>
+  signUp(email: string, password: string): Promise<Session | null>
+  sendReset(email: string): Promise<void>
+  setPassword(password: string): Promise<Session>
+  // True when the page was opened from a password-reset email.
+  recovering(): boolean
   load(): Promise<Snapshot>
   insert<K extends Table>(table: K, rows: Rows[K][]): Promise<void>
   update<K extends Table>(table: K, id: string, patch: Partial<Rows[K]>): Promise<void>
@@ -58,7 +104,7 @@ export interface Backend {
 // Demo mode keeps everything in this browser. Tabs stay in sync through a
 // BroadcastChannel so two windows behave like K and Ali side by side.
 
-const KEY = 'reboot-crm:demo:v4'
+const KEY = 'reboot-crm:demo:v5'
 const SESSION_KEY = 'reboot-crm:demo:session'
 
 function readDemo(): Snapshot {
@@ -121,6 +167,19 @@ function demoBackend(): Backend {
       } catch {
         /* ignore */
       }
+    },
+    async isTeamEmail() {
+      return true
+    },
+    async signUp() {
+      return null
+    },
+    async sendReset() {},
+    async setPassword() {
+      return { name: 'K', email: null }
+    },
+    recovering() {
+      return false
     },
     async load() {
       mem = null
@@ -187,7 +246,11 @@ const TEAM_NAMES: Record<string, string> = {
   's.kazmi@rebootmedia.us': 'Ali',
 }
 
+// Read before the Supabase client parses (and clears) the reset link's hash.
+const RECOVERY = typeof location !== 'undefined' && /type=recovery/.test(location.hash)
+
 function liveBackend(url: string, key: string): Backend {
+  let recovering = RECOVERY
   const sb = createClient(url, key, { auth: { persistSession: true } })
   const toSession = (u: any): Session | null =>
     u
@@ -217,10 +280,33 @@ function liveBackend(url: string, key: string): Backend {
     async signOut() {
       await sb.auth.signOut()
     },
+    async isTeamEmail(email) {
+      const { data } = await sb.rpc('crm_team_email', { e: email })
+      return data === true
+    },
+    async signUp(email, password) {
+      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin } })
+      if (error) throw error
+      return data.session ? toSession(data.user) : null
+    },
+    async sendReset(email) {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin })
+      if (error) throw error
+    },
+    async setPassword(password) {
+      const { data, error } = await sb.auth.updateUser({ password })
+      if (error) throw error
+      recovering = false
+      history.replaceState(null, '', location.pathname)
+      return toSession(data.user)!
+    },
+    recovering() {
+      return recovering
+    },
     async load() {
       // Recent history only for the busy tables; everything else in full.
       const since = new Date(Date.now() - 90 * 864e5).toISOString()
-      const recent = new Set<Table>(['activities', 'email_events', 'calls', 'flow_runs'])
+      const recent = new Set<Table>(['activities', 'email_events', 'calls', 'flow_runs', 'site_visits'])
       const results = await Promise.all(TABLES.map((t) => fetchAll(sb, live(t), (q) => (recent.has(t) ? q.gte('created_at', since).order('created_at') : q.order('created_at')))))
       const settingsRow = await sb.from('crm_settings').select('value').eq('id', 1).maybeSingle()
       const snap = Object.fromEntries(TABLES.map((t, i) => [t, results[i]])) as unknown as Snapshot

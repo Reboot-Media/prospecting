@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { backend, type Change, type Rows, type Session, type Snapshot, type Table } from './backend'
 import type { Activity, Call, CallStatus, Email, EmailEvent, Lead, Meeting, MeetingStatus, Outcome, Settings, Stage, Task } from './types'
-import { OUTCOMES } from './constants'
+import { CALL_EXTRAS, LEAD_EXTRAS, OUTCOMES } from './constants'
 import { uid } from './format'
 import { advance, eventsFromChange, isDue, resumeOnEvent, startRun, stopRun, triggerLabel, triggerMatches, type Effect, type FlowCtx, type FlowEvent, type FlowRun, type Workflow } from './flow'
 
@@ -265,6 +265,7 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
               outcome,
               via: 'cell',
               provider_id: null,
+              ...CALL_EXTRAS,
               created_at: t,
             },
           })
@@ -488,6 +489,7 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
         outcome: null,
         via,
         provider_id: null,
+              ...CALL_EXTRAS,
         created_at: t,
       }
       await commit([{ table: 'calls', row: c }], [])
@@ -551,6 +553,7 @@ export function DataProvider({ me, children, onSignOut }: { me: Session; childre
         sequence_step: 0,
         sequence_state: null,
         email_status: 'ok',
+        ...LEAD_EXTRAS,
         created_at: t,
         updated_at: t,
       }

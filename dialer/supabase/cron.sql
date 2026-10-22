@@ -38,3 +38,7 @@ select cron.schedule(
   );
   $$
 );
+
+-- Website checker: reads the next 15 roofers' websites every 15 minutes.
+select cron.unschedule('crm-enrich') where exists (select 1 from cron.job where jobname = 'crm-enrich');
+select cron.schedule('crm-enrich', '*/15 * * * *', $$ select net.http_post(url := 'https://fqlgfmuiedrdowxnvcjv.supabase.co/functions/v1/crm-enrich', headers := jsonb_build_object('content-type','application/json','x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name = 'crm_cron_secret')), body := '{}'::jsonb, timeout_milliseconds := 120000); $$);

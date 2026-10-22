@@ -110,6 +110,21 @@ export function Settings() {
           <input type="checkbox" checked={s.missed_call_task} onChange={(e) => setS({ ...s, missed_call_task: e.target.checked })} /> Turn every missed inbound call into a callback
           task
         </label>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={s.record_notice} onChange={(e) => setS({ ...s, record_notice: e.target.checked })} /> Say "This call may be recorded" to inbound callers
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={s.transcribe_calls} onChange={(e) => setS({ ...s, transcribe_calls: e.target.checked })} /> Transcribe and summarize recorded calls longer
+          than
+          <input
+            type="number"
+            min={0}
+            className="h-7 w-14 rounded-md border border-line px-1.5 text-sm"
+            value={s.transcribe_min_sec}
+            onChange={(e) => setS({ ...s, transcribe_min_sec: Number(e.target.value) || 0 })}
+          />
+          seconds
+        </label>
         {saveBar}
       </Card>
 

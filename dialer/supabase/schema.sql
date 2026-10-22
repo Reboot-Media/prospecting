@@ -379,3 +379,109 @@ language sql stable security definer set search_path = public, vault as $f$
 $f$;
 revoke all on function public.crm_secret(text) from public, anon, authenticated;
 grant execute on function public.crm_secret(text) to service_role;
+
+-- Ready-to-go pass (2026-10-22): roofer profile card, scripts, buyer intent from
+-- rebootmedia.us visits, call transcripts, Meta lead ads, first-login check.
+alter table public.crm_leads add column if not exists google_rating numeric(2,1);
+alter table public.crm_leads add column if not exists review_count integer;
+alter table public.crm_leads add column if not exists gbp_url text not null default '';
+alter table public.crm_leads add column if not exists site_tags jsonb not null default '{}';
+alter table public.crm_leads add column if not exists site_checked_at timestamptz;
+
+alter table public.crm_calls add column if not exists transcript text not null default '';
+alter table public.crm_calls add column if not exists summary text not null default '';
+alter table public.crm_calls add column if not exists insights jsonb;
+
+create table if not exists public.crm_scripts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default 'New script',
+  kind text not null default 'other' check (kind in ('opener','gatekeeper','objections','voicemail','confirm','pain','other')),
+  body text not null default '',
+  sort integer not null default 0,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_site_visits (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid references public.crm_leads(id) on delete cascade,
+  visitor text not null default '',
+  page text not null default '',
+  referrer text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists crm_site_visits_lead_idx on public.crm_site_visits (lead_id, created_at desc);
+create index if not exists crm_site_visits_visitor_idx on public.crm_site_visits (visitor);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['crm_scripts','crm_site_visits'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "team full access" on public.%I', t);
+    execute format('create policy "team full access" on public.%I for all to authenticated using (public.crm_is_team()) with check (public.crm_is_team())', t);
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
+-- The login page asks this before offering "set your password", so only K and Ali
+-- can create an account from it. Answers yes/no for one email, nothing else.
+create or replace function public.crm_team_email(e text) returns boolean
+language sql stable security definer set search_path = public as $f$
+  select exists (select 1 from public.crm_team where email = lower(trim(e)))
+$f$;
+grant execute on function public.crm_team_email(text) to anon, authenticated;
+
+-- Workflow events for answered inbound calls (a roofer calling back) and site visits.
+create or replace function public.crm_flow_capture() returns trigger
+language plpgsql security definer set search_path = public as $f$
+begin
+  if TG_TABLE_NAME = 'crm_activities' then
+    if new.outcome in ('no_answer','voicemail','gatekeeper','callback','booked','confirmed','not_interested','bad_number','dnc') then
+      insert into crm_flow_events (type, value, lead_id) values ('call_outcome', new.outcome, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_leads' then
+    if TG_OP = 'INSERT' then
+      insert into crm_flow_events (type, value, lead_id) values ('contact_created', new.source, new.id);
+      insert into crm_flow_events (type, value, lead_id) select 'tag_added', x, new.id from unnest(new.tags) x;
+    else
+      insert into crm_flow_events (type, value, lead_id) select 'tag_added', x, new.id from unnest(new.tags) x where not (x = any(old.tags));
+      insert into crm_flow_events (type, value, lead_id) select 'tag_removed', x, new.id from unnest(old.tags) x where not (x = any(new.tags));
+      if new.stage is distinct from old.stage and new.stage is not null then
+        insert into crm_flow_events (type, value, lead_id) values ('stage_changed', new.stage, new.id);
+      end if;
+    end if;
+  elsif TG_TABLE_NAME = 'crm_meetings' then
+    if TG_OP = 'INSERT' then
+      insert into crm_flow_events (type, value, lead_id) values ('meeting_booked', new.source, new.lead_id);
+    elsif new.status is distinct from old.status then
+      insert into crm_flow_events (type, value, lead_id) values ('meeting_status', new.status, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_forms' then
+    if new.lead_id is not null then
+      insert into crm_flow_events (type, value, lead_id) values ('form_submitted', new.form, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_email_events' then
+    if new.type in ('open','click','reply','bounce') then
+      insert into crm_flow_events (type, value, lead_id)
+      values (case new.type when 'open' then 'email_opened' when 'click' then 'email_clicked' when 'reply' then 'email_replied' else 'email_bounced' end, new.url, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_calls' then
+    if new.lead_id is not null and new.direction = 'in' and new.status = 'missed' and (TG_OP = 'INSERT' or old.status is distinct from 'missed') then
+      insert into crm_flow_events (type, value, lead_id) values ('missed_call', new.source, new.lead_id);
+    end if;
+    if new.lead_id is not null and new.direction = 'in' and new.status = 'completed' and TG_OP = 'UPDATE' and old.status is distinct from 'completed' then
+      insert into crm_flow_events (type, value, lead_id) values ('inbound_call', new.source, new.lead_id);
+    end if;
+  elsif TG_TABLE_NAME = 'crm_site_visits' then
+    if new.lead_id is not null then
+      insert into crm_flow_events (type, value, lead_id) values ('site_visit', new.page, new.lead_id);
+    end if;
+  end if;
+  return null;
+end $f$;
+revoke all on function public.crm_flow_capture() from public, anon, authenticated;
+drop trigger if exists crm_flow_site_visits on public.crm_site_visits;
+create trigger crm_flow_site_visits after insert on public.crm_site_visits for each row execute function public.crm_flow_capture();

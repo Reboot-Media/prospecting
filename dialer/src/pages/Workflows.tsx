@@ -647,6 +647,7 @@ function valueOptions(t: TriggerType): [string, string][] | 'text' | null {
       return [['', 'Any form'], ...Object.entries(FORM_LABEL)]
     case 'tag_added':
     case 'tag_removed':
+    case 'site_visit':
       return 'text'
     default:
       return null
@@ -669,8 +670,8 @@ function TriggerEditor({ wf, set }: { wf: Workflow; set(p: Partial<Workflow>): v
         <Select value={wf.trigger.type} onChange={(v) => setT({ type: v as TriggerType, value: '' })} options={TRIGGERS.map((x) => [x.type, x.label])} />
       </Field>
       {opts === 'text' ? (
-        <Field label="Tag">
-          <input className={inputCls} value={wf.trigger.value} onChange={(e) => setT({ value: e.target.value.trim() })} placeholder="e.g. hot" />
+        <Field label={t?.valueLabel || 'Tag'} hint={wf.trigger.type === 'site_visit' ? 'Leave empty for any page.' : undefined}>
+          <input className={inputCls} value={wf.trigger.value} onChange={(e) => setT({ value: e.target.value.trim() })} placeholder={wf.trigger.type === 'site_visit' ? 'e.g. /pricing' : 'e.g. hot'} />
         </Field>
       ) : (
         opts && (

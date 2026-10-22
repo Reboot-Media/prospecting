@@ -38,8 +38,51 @@ export interface Lead {
   sequence_step: number
   sequence_state: 'active' | 'replied' | 'finished' | 'paused' | 'bounced' | null
   email_status: 'ok' | 'bounced' | 'unsubscribed'
+  // What the roofer is doing online, for the profile card.
+  google_rating: number | null
+  review_count: number | null
+  gbp_url: string
+  site_tags: SiteTags
+  site_checked_at: string | null
   created_at: string
   updated_at: string
+}
+
+// Tracking and marketing tools found on the roofer's own website.
+export interface SiteTags {
+  gtm?: string[]
+  ga4?: string[]
+  google_ads?: string[]
+  meta_pixel?: string[]
+  call_tracking?: string[]
+  chat?: string[]
+  reviews_widget?: string[]
+  estimator?: string[]
+  crm?: string[]
+  builder?: string
+  error?: string
+}
+
+// A page view on rebootmedia.us from a roofer we emailed (links carry ?rb=<contact id>).
+export interface SiteVisit {
+  id: string
+  lead_id: string | null
+  visitor: string
+  page: string
+  referrer: string
+  created_at: string
+}
+
+export type ScriptKind = 'opener' | 'gatekeeper' | 'objections' | 'voicemail' | 'confirm' | 'pain' | 'other'
+
+export interface Script {
+  id: string
+  name: string
+  kind: ScriptKind
+  body: string
+  sort: number
+  updated_at: string
+  created_at: string
 }
 
 export interface Activity {
@@ -170,7 +213,7 @@ export interface Template {
 
 export interface FormSubmission {
   id: string
-  form: 'visibility-check' | 'grow' | 'scale' | 'commercial'
+  form: 'visibility-check' | 'grow' | 'scale' | 'commercial' | 'meta-lead'
   lead_id: string | null
   fields: Record<string, string>
   page: string
@@ -189,6 +232,9 @@ export interface Settings {
   call_via: 'cell' | 'browser'
   record_calls: boolean
   missed_call_task: boolean
+  record_notice: boolean
+  transcribe_calls: boolean
+  transcribe_min_sec: number
 }
 
 export type NewLead = Partial<Lead> & { company: string; phone: string }
@@ -227,7 +273,20 @@ export interface Call {
   outcome: Outcome | null
   via: 'browser' | 'cell' | 'forward'
   provider_id: string | null
+  // Filled by the transcriber after a recorded call.
+  transcript: string
+  summary: string
+  insights: CallInsights | null
   created_at: string
+}
+
+export interface CallInsights {
+  next_step?: string
+  objections?: string[]
+  pain?: string
+  why_now?: string
+  sentiment?: 'hot' | 'warm' | 'cold'
+  error?: string
 }
 
 export type { Workflow, FlowRun, Step, Condition, TriggerType } from './flow'

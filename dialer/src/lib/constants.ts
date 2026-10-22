@@ -197,6 +197,9 @@ export const DEFAULT_SETTINGS: Settings = {
   call_via: 'cell',
   record_calls: true,
   missed_call_task: true,
+  record_notice: true,
+  transcribe_calls: true,
+  transcribe_min_sec: 20,
 }
 
 export const CALL_STATUS_LABEL: Record<import('./types').CallStatus, string> = {
@@ -225,4 +228,9 @@ export const FORM_LABEL = {
   grow: 'Grow',
   scale: 'Scale',
   commercial: 'Commercial',
+  'meta-lead': 'Meta lead ad',
 } as const
+
+// Defaults for the profile-card fields on a new contact.
+export const LEAD_EXTRAS = { google_rating: null, review_count: null, gbp_url: '', site_tags: {}, site_checked_at: null } as const
+export const CALL_EXTRAS = { transcript: '', summary: '', insights: null } as const

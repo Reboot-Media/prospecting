@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Avatar, Badge, Button, Card, CardHead, Empty, Icon, PageHeader, StatStrip, Tabs } from '../components/ui'
 import { backend } from '../lib/backend'
-import { FORM_LABEL } from '../lib/constants'
+import { FORM_LABEL, LEAD_EXTRAS } from '../lib/constants'
 import { ago, uid } from '../lib/format'
 import { useData } from '../lib/store'
 import type { FormSubmission, Lead } from '../lib/types'
@@ -48,6 +48,7 @@ export function Forms({ openContact }: { openContact(id: string): void }) {
       sequence_step: 0,
       sequence_state: null,
       email_status: 'ok',
+      ...LEAD_EXTRAS,
       created_at: t,
       updated_at: t,
     }
